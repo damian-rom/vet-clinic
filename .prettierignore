@@ -1,0 +1,13 @@
+node_modules/
+.npm-cache/
+.next/
+.turbo/
+dist/
+data/
+package-lock.json
+04-project-overview-vet-clinic.md
+docs/implementation-plan.md
+test-results/
+playwright-report/
+.playwright/
+next-env.d.ts
