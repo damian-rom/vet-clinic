@@ -11,9 +11,4 @@ export const CLINIC_CONFIG = {
 } as const;
 
 /** Default visit types seeded on first run */
-export const DEFAULT_VISIT_TYPES = [
-  "Consult",
-  "Operation",
-  "Lab work",
-  "Vaccination",
-] as const;
+export const DEFAULT_VISIT_TYPES = ['Consult', 'Operation', 'Lab work', 'Vaccination'] as const;

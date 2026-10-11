@@ -7,13 +7,29 @@
   ],
   "scripts": {
     "dev": "turbo dev",
+    "setup": "node scripts/setup.mjs",
     "build": "turbo build",
-    "lint": "turbo lint",
-    "test": "turbo test"
+    "lint": "eslint apps packages tests scripts playwright.config.ts --max-warnings=0",
+    "format": "prettier --write apps packages tests scripts *.json *.mjs playwright.config.ts README.md docs/architecture.md docs/acceptance.md .github",
+    "format:check": "prettier --check apps packages tests scripts *.json *.mjs playwright.config.ts README.md docs/architecture.md docs/acceptance.md .github",
+    "pretest": "turbo build --filter=@vet-clinic/app",
+    "test": "npm run test --workspace=@vet-clinic/app",
+    "typecheck": "turbo typecheck && tsc --noEmit -p tsconfig.tests.json",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.58.0",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "prettier": "^3.9.10",
     "turbo": "^2.0.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.1"
   },
-  "packageManager": "npm@10.8.0"
+  "packageManager": "npm@11.6.1",
+  "engines": {
+    "node": ">=24.0.0"
+  }
 }

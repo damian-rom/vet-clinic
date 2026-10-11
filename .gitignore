@@ -4,3 +4,11 @@ dist
 .next
 *.env*.local
 .env
+data/
+*.tsbuildinfo
+playwright-report/
+test-results/
+.npm-cache/
+.playwright/
+04-project-overview-vet-clinic.md
+docs/implementation-plan.md

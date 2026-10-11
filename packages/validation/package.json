@@ -2,16 +2,18 @@
   "name": "@vet-clinic/validation",
   "version": "0.1.0",
   "private": true,
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "types": "./src/index.ts",
   "scripts": {
-    "lint": "tsc --noEmit"
+    "build": "tsc --outDir dist --declaration",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@vet-clinic/types": "*",
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.0"
+    "typescript": "^5.9.3"
   }
 }
