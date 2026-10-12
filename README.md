@@ -22,6 +22,15 @@ The schema lives in `packages/db` as a Prisma model with SQL migrations. `npm ru
 
 This release starts from a fresh Prisma baseline. Databases created by earlier versions, including the original `id`/`document` tables, are not converted; start with a new database file.
 
+## Run with Docker
+
+```bash
+npm run setup   # creates apps/app/.env with CLINIC_ACCESS_CODE
+docker compose up --build
+```
+
+Open **http://localhost:3000** (set `WEB_PORT` to publish another port). Compose starts three containers in order: `db` applies the Prisma migrations to the `clinic-data` volume and exits, `api` starts once that succeeds, and `web` starts once the API passes its health check. The API reads `apps/app/.env` for the access code, timezone, AI and SMTP settings; Compose sets the database path, host and port itself. Only the web app is published. Remove the data with `docker compose down -v`.
+
 ## Provider settings
 
 Edit `apps/app/.env` to enable external features:

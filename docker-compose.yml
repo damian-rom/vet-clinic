@@ -1,0 +1,50 @@
+# Whole clinic: migrations run first, the API starts once they succeed, and the web app
+# starts once the API reports healthy. Only the web app is published, on WEB_PORT (3000).
+#   npm run setup            # creates apps/app/.env with CLINIC_ACCESS_CODE
+#   docker compose up --build
+name: vet-clinic
+
+services:
+  db:
+    build:
+      context: .
+      dockerfile: packages/db/Dockerfile
+    volumes:
+      - clinic-data:/data
+    restart: 'no'
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/app/Dockerfile
+    depends_on:
+      db:
+        condition: service_completed_successfully
+    # CLINIC_ACCESS_CODE, timezone, AI and SMTP settings come from the API's env file.
+    env_file:
+      - path: apps/app/.env
+        required: false
+    environment:
+      HOST: 0.0.0.0
+      PORT: '3001'
+      DATABASE_PATH: /data/clinic.sqlite
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:${WEB_PORT:-3000}}
+    volumes:
+      - clinic-data:/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        API_URL: http://api:3001
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+    restart: unless-stopped
+
+volumes:
+  clinic-data:
