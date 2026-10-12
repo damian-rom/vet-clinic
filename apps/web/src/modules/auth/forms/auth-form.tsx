@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { PawPrint, CalendarDays, Heart, ShieldCheck, ArrowRight, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/button';
+import { PasswordInput } from '@/components/password-input';
 import { Field, formValues } from '@/components/common';
 import { LanguageSwitch } from '@/i18n/locale-provider';
 
@@ -115,9 +116,9 @@ export function AuthForm({ onLogin }: { onLogin: () => Promise<void> }) {
               label={translate('password')}
               hint={mode !== 'login' ? translate('atLeast10Characters') : undefined}
             >
-              <input
+              <PasswordInput
+                key={mode}
                 name="password"
-                type="password"
                 required
                 minLength={mode === 'login' ? 1 : 10}
                 maxLength={128}

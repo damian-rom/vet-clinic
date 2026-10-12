@@ -26,6 +26,8 @@
     "emailAddress": "Correo electrónico",
     "youExampleCom": "you@example.com",
     "password": "Contraseña",
+    "showPassword": "Mostrar contraseña",
+    "hidePassword": "Ocultar contraseña",
     "atLeast10Characters": "Al menos 10 caracteres",
     "clinicAccessCode": "Código de acceso de la clínica",
     "pleaseWait": "Un momento…",

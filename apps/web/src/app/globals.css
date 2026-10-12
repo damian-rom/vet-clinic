@@ -1027,6 +1027,18 @@ input::placeholder,
 textarea::placeholder {
   color: #b2bcaa;
 }
+.password-control {
+  position: relative;
+}
+.password-control input {
+  padding-right: 52px;
+}
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
 textarea {
   resize: vertical;
   min-height: 95px;

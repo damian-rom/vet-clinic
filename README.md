@@ -57,6 +57,46 @@ packages/config/       Fixed clinic hours, slots and default visit types
 
 See [architecture](docs/architecture.md) for data, transaction, security and code-navigation details, and [acceptance coverage](docs/acceptance.md) for the specification-to-test mapping.
 
+## Manual testing
+
+Use separate browser profiles or different browsers for two owners and two veterinarians. Refresh the other workspace after a change. Book future weekdays inside the clinic's fixed 09:00–18:00 hours, in the displayed clinic timezone.
+
+| Area                       | Check                                                                                                                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Accounts                   | Owner signup; staff signup with wrong/correct clinic code; wrong password; login/logout; eye button on all three forms; owner data isolation                                                    |
+| Pets                       | Required fields; DOB or approximate age; multiple pets; editing; visit history with the attending vet; refusing deletion when history exists                                                    |
+| Booking                    | Pending status; two simultaneous reservations exhaust a slot with two vets; closed/blocked/full times absent; eligible cancellation releases capacity and retains history                       |
+| Confirmation and calendars | Human assignment to self/colleague; personal calendars; colleague switch; duration-proportional visits; valid drag/reschedule; refusal of overlaps and blocked moves                            |
+| Plans                      | Visit type, duration and estimated products; a stock warning still allows saving; forecasts leave stock unchanged; duration changes cannot cause collisions                                     |
+| New times                  | Asking an owner releases the reservation; the owner chooses again; status returns to Awaiting confirmation and needs human assignment                                                           |
+| Cases                      | Link the same pet's visits in order; pet-needed checkpoint prompts the owner; pet-not-needed checkpoint is scheduled/confirmed by a vet; owners cannot cancel checkpoints or see their plans    |
+| AI                         | Single and batch drafts; no automatic assignment/status changes; AI badge; review badge and original comparison; batches preserve human/reviewed plans                                          |
+| Inventory and completion   | Received deliveries; Correction with mandatory reason; actual usage prefilled/editable; Done deducts once through Used movements; insufficient stock refuses completion without partial changes |
+| Configuration              | Create/remove ranges and whole-day blocks; refuse blocking an existing visit; add/rename/retire/restore types; refuse deleting used types                                                       |
+| Reports                    | All three report kinds for vets; owner-only care history; date/pet filters; PDF download; account-address email with SMTP configured                                                            |
+| General                    | English/Spanish; mobile layout; keyboard navigation; errors; saved records survive a normal app restart; dashboard planning/AI metrics                                                          |
+
+Real AI needs `AI_API_KEY` and `AI_MODEL`; actual report delivery needs the SMTP settings. Restart the API after changing its environment. Visits cannot be completed before their start time.
+
+For a quick isolated walkthrough with a past visit ready to complete and deterministic AI, use two PowerShell terminals from the repository root instead of the normal app:
+
+```powershell
+# Terminal 1: isolated API
+npm.cmd run build
+$env:APP_ORIGIN = 'http://localhost:3100'
+node node_modules/tsx/dist/cli.mjs --tsconfig apps/app/tsconfig.json apps/app/test/e2e-server.ts
+```
+
+```powershell
+# Terminal 2: frontend connected to the isolated API
+$env:API_URL = 'http://127.0.0.1:3101'
+node node_modules/next/dist/bin/next dev apps/web --port 3100
+```
+
+Open http://localhost:3100. Sign in as `owner@example.com`, `vet0@example.com`, or `vet1@example.com`; all use `correct-horse-battery`. The fixture staff code is `test-clinic-access-code`. Luna has an "Annual vaccination" visit ready to complete and 10 vaccine doses in stock.
+
+Fixture data resets when its API stops. AI and email use test adapters, so this mode does not check real provider responses, actual email delivery, or persistent storage. Close these terminals when finished; use fresh terminals for normal startup so the demo environment settings do not carry over. Stop the isolated servers before running browser tests, which start their own servers on the same ports.
+
 ## Verify
 
 ```bash

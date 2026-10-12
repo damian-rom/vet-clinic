@@ -26,6 +26,8 @@
     "emailAddress": "Email address",
     "youExampleCom": "you@example.com",
     "password": "Password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
     "atLeast10Characters": "At least 10 characters",
     "clinicAccessCode": "Clinic access code",
     "pleaseWait": "Please wait…",
