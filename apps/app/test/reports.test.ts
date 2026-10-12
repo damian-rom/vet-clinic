@@ -46,6 +46,76 @@ test('three joined-data reports, role boundaries, PDF generation and account-onl
   assert.ok(f.appointment(a.id).scheduledAt === TIME);
 });
 
+test('relational report joins filter owners, pets, dates, unscheduled visits and actual inventory usage', (t) => {
+  const f = fixture();
+  t.after(() => f.store.close());
+  const a = f.book();
+  f.plan(a.id, [], 45);
+  f.clinic.appointments.appointment(f.vets[0], a.id, 'assign', { vetId: f.vets[0].id });
+  const otherOwner = f.clinic.auth.register({
+    name: 'Other owner',
+    email: 'other@example.com',
+    password: 'correct-horse-battery',
+  }).user;
+  const otherPet = f.clinic.pets.pet(otherOwner, {
+    name: 'Rex',
+    species: 'Dog',
+    sex: 'Male',
+    approximateAge: '2 years',
+  });
+  const b = f.clinic.appointments.book(otherOwner, {
+    petId: otherPet.id,
+    symptoms: 'Checkup',
+    scheduledAt: '2030-01-07T16:00:00.000Z',
+  });
+  f.plan(b.id);
+  f.clinic.appointments.appointment(f.vets[0], b.id, 'assign', { vetId: f.vets[1].id });
+  const careCase = f.clinic.cases.createCase(f.vets[0], { petId: f.pet.id, name: 'Follow-up' });
+  f.clinic.cases.checkpoint(f.vets[0], careCase.id, { symptoms: 'Recheck', petNeeded: true });
+  const filters = { from: '2030-01-07', to: '2030-01-07' };
+  const ownReport = f.clinic.reports.build(f.owner, 'care-history', filters);
+  assert.equal(ownReport.rows.length, 2);
+  assert.ok(ownReport.rows.every((row) => row[0] === 'Luna' && row[1] === 'Owner'));
+  assert.ok(ownReport.rows.some((row) => row[2] === 'No time' && row[3] === 'NeedsTime'));
+  const activity = f.clinic.reports.build(f.vets[0], 'clinic-activity', filters);
+  assert.equal(activity.rows.length, 3);
+  assert.ok(
+    activity.rows.some(
+      (row) => row[0] === 'Luna' && row[4] === 'Vet 0' && row[5] === 'Consult' && row[6] === '45',
+    ),
+  );
+  assert.equal(
+    f.clinic.reports.build(f.vets[0], 'clinic-activity', { ...filters, petId: otherPet.id }).rows
+      .length,
+    1,
+  );
+  assert.throws(() =>
+    f.clinic.reports.build(f.owner, 'care-history', { ...filters, petId: otherPet.id }),
+  );
+  assert.equal(f.clinic.reports.build(otherOwner, 'care-history', filters).rows.length, 1);
+  assert.equal(
+    f.clinic.reports.build(f.vets[0], 'clinic-activity', { from: '2030-01-08', to: '2030-01-09' })
+      .rows.length,
+    0,
+  );
+  const product = f.clinic.inventory.createProduct(f.vets[0], { name: 'Dose', unit: 'dose' });
+  f.clinic.inventory.movement(f.vets[0], { productId: product.id, type: 'Received', quantity: 3 });
+  f.clock.value = Date.parse('2030-01-07T17:00:00.000Z');
+  for (const id of [a.id, b.id])
+    f.clinic.appointments.appointment(f.vets[0], id, 'complete', {
+      actualActives: [{ productId: product.id, quantity: 1 }],
+      revision: f.appointment(id).revision,
+    });
+  const allUsage = f.clinic.reports.build(f.vets[0], 'inventory-usage', filters);
+  assert.equal(allUsage.rows.length, 3);
+  const petUsage = f.clinic.reports.build(f.vets[0], 'inventory-usage', {
+    ...filters,
+    petId: f.pet.id,
+  });
+  assert.equal(petUsage.rows.length, 1);
+  assert.deepEqual(petUsage.rows[0].slice(1), ['Dose', 'Used', '-1 dose', 'Vet 0', a.id]);
+});
+
 test('SMTP adapter sends an attached PDF through a real local SMTP connection', async (t) => {
   let delivered = '';
   let resolveDelivery: () => void = () => {};

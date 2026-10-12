@@ -50,52 +50,44 @@ export class ReportsService {
       const pet = find(this.store.read().pets, filters.petId);
       if (user.role === 'owner' && pet.ownerId !== user.id) fail('Record not found', 404);
     }
-    const range = (date: string) =>
-      date.slice(0, 10) >= filters.from && date.slice(0, 10) <= filters.to;
     // Owner rows deliberately exclude visit plans, actives and AI provenance.
     if (kind === 'care-history' || kind === 'clinic-activity') {
-      const joined = this.store.query(`
-        SELECT a.document AS appointment, p.document AS pet,
-               o.document AS owner, v.document AS vet, t.document AS visitType
+      const ownerId = user.role === 'owner' ? user.id : '';
+      const petId = filters.petId || '';
+      const joined = this.store.query(
+        `
+        SELECT p.name AS pet_name, o.name AS owner_name,
+               a.scheduled_at, a.status, v.name AS vet_name,
+               t.name AS visit_type_name, COALESCE(plan.duration_minutes, 30) AS duration_minutes
         FROM appointments a
-        JOIN pets p ON p.id = json_extract(a.document, '$.petId')
-        JOIN users o ON o.id = json_extract(a.document, '$.ownerId')
-        LEFT JOIN users v ON v.id = json_extract(a.document, '$.vetId')
-        LEFT JOIN visitTypes t ON t.id = json_extract(a.document, '$.plan.visitTypeId')
-        ORDER BY COALESCE(json_extract(a.document, '$.scheduledAt'), json_extract(a.document, '$.createdAt'))
-      `);
-      const rows = joined.flatMap((row) => {
-        const a = JSON.parse(row.appointment as string) as {
-          ownerId: string;
-          petId: string;
-          status: string;
-          scheduledAt?: string;
-          createdAt: string;
-          plan?: { durationMinutes: number };
-        };
-        if (
-          (user.role === 'owner' && a.ownerId !== user.id) ||
-          (filters.petId && a.petId !== filters.petId) ||
-          !range(a.scheduledAt || a.createdAt)
-        )
-          return [];
-        const pet = JSON.parse(row.pet as string) as { name: string };
-        const owner = JSON.parse(row.owner as string) as User;
-        const vet = row.vet ? (JSON.parse(row.vet as string) as User) : undefined;
+        JOIN pets p ON p.id = a.pet_id
+        JOIN users o ON o.id = a.owner_id
+        LEFT JOIN users v ON v.id = a.vet_id
+        LEFT JOIN appointment_plans plan ON plan.appointment_id = a.id
+        LEFT JOIN visit_types t ON t.id = plan.visit_type_id
+        WHERE substr(COALESCE(a.scheduled_at, a.created_at), 1, 10) BETWEEN ? AND ?
+          AND (? = '' OR a.owner_id = ?)
+          AND (? = '' OR a.pet_id = ?)
+        ORDER BY COALESCE(a.scheduled_at, a.created_at), a.rowid
+      `,
+        filters.from,
+        filters.to,
+        ownerId,
+        ownerId,
+        petId,
+        petId,
+      );
+      const rows = joined.map((row) => {
         const values = [
-          pet.name,
-          owner.name,
-          a.scheduledAt || (spanish ? 'Sin hora' : 'No time'),
-          a.status,
-          vet?.name || '—',
+          String(row.pet_name),
+          String(row.owner_name),
+          String(row.scheduled_at ?? (spanish ? 'Sin hora' : 'No time')),
+          String(row.status),
+          String(row.vet_name ?? '—'),
         ];
-        if (kind === 'clinic-activity') {
-          const type = row.visitType
-            ? (JSON.parse(row.visitType as string) as { name: string })
-            : undefined;
-          values.push(type?.name || '—', String(a.plan?.durationMinutes || 30));
-        }
-        return [values];
+        if (kind === 'clinic-activity')
+          values.push(String(row.visit_type_name ?? '—'), String(row.duration_minutes));
+        return values;
       });
       const columns = spanish
         ? ['Mascota', 'Dueño', 'Fecha (UTC)', 'Estado', 'Veterinario']
@@ -117,38 +109,33 @@ export class ReportsService {
         ...filters,
       };
     }
+    const petId = filters.petId || '';
     const rows = this.store
       .query(
         `
-      SELECT m.document AS movement, p.document AS product, u.document AS vet
-      FROM movements m
-      JOIN products p ON p.id = json_extract(m.document, '$.productId')
-      JOIN users u ON u.id = json_extract(m.document, '$.performedBy')
-      ORDER BY json_extract(m.document, '$.performedAt')
-    `,
+        SELECT m.performed_at, m.type, m.quantity, m.reason, m.appointment_id,
+               p.name AS product_name, p.unit, u.name AS vet_name
+        FROM movements m
+        JOIN products p ON p.id = m.product_id
+        JOIN users u ON u.id = m.performed_by
+        LEFT JOIN appointments a ON a.id = m.appointment_id
+        WHERE substr(m.performed_at, 1, 10) BETWEEN ? AND ?
+          AND (? = '' OR a.pet_id = ?)
+        ORDER BY m.performed_at, m.rowid
+      `,
+        filters.from,
+        filters.to,
+        petId,
+        petId,
       )
-      .flatMap((row) => {
-        const m = JSON.parse(row.movement as string) as {
-          performedAt: string;
-          type: string;
-          quantity: number;
-          reason?: string;
-          appointmentId?: string;
-        };
-        if (!range(m.performedAt)) return [];
-        const p = JSON.parse(row.product as string) as { name: string; unit: string };
-        const u = JSON.parse(row.vet as string) as User;
-        return [
-          [
-            m.performedAt,
-            p.name,
-            m.type,
-            `${m.quantity} ${p.unit}`,
-            u.name,
-            m.reason || m.appointmentId || '—',
-          ],
-        ];
-      });
+      .map((row) => [
+        String(row.performed_at),
+        String(row.product_name),
+        String(row.type),
+        `${row.quantity} ${row.unit}`,
+        String(row.vet_name),
+        String(row.reason || row.appointment_id || '—'),
+      ]);
     return {
       kind,
       title: spanish ? 'Movimientos de inventario' : 'Inventory usage',
