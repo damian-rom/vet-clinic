@@ -9,7 +9,8 @@ async function bootstrap() {
     throw new Error('Set CLINIC_ACCESS_CODE in apps/app/.env before starting the clinic.');
   const db = await openDatabase(resolve(process.env.DATABASE_PATH || 'data/clinic.sqlite'));
   const app = await createServer(new Clinic(db));
-  await app.listen(Number(process.env.PORT || 3001), '127.0.0.1');
+  // Containers set HOST=0.0.0.0; local runs stay on the loopback interface.
+  await app.listen(Number(process.env.PORT || 3001), process.env.HOST || '127.0.0.1');
   console.log(`Clinic API ready on http://localhost:${process.env.PORT || 3001}/api`);
 }
 
