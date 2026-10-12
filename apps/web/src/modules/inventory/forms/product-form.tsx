@@ -1,7 +1,7 @@
 'use client';
 import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Field, formValues } from '@/components/common';
 import { useVet } from '@/components/context';
 export function ProductForm() {

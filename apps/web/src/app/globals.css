@@ -939,7 +939,7 @@ input[type='checkbox'] {
   color: #94a08f;
   margin: 10px 0 0;
 }
-.dialog-overlay {
+.dialog-content::backdrop {
   position: fixed;
   inset: 0;
   background: #142d2290;
@@ -947,6 +947,11 @@ input[type='checkbox'] {
   z-index: 50;
 }
 .dialog-content {
+  inset: auto;
+  margin: 0;
+  border: 0;
+  color: inherit;
+  max-width: none;
   position: fixed;
   left: 50%;
   top: 50%;

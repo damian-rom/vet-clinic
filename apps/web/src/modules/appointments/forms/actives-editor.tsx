@@ -2,7 +2,7 @@
 import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
 import type { EstimatedActive } from '@vet-clinic/types';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { useVet } from '@/components/context';
 export function ActivesEditor({
   value,

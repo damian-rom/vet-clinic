@@ -16,8 +16,8 @@ import {
 } from 'lucide-react';
 import type { OwnerWorkspace, VetWorkspace } from '@vet-clinic/types';
 import { api, ApiError } from '@/lib/api';
-import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
+import { Button } from './button';
+import { Modal } from './modal';
 import { Context } from './context';
 import { OwnerHome } from '@/modules/overview/owner-overview';
 import { Pets } from '@/modules/pets/list/pet-list';
@@ -281,25 +281,20 @@ export function ClinicApp() {
           </footer>
         </div>
       </div>
-      <Dialog
+      <Modal
         open={Boolean(modal)}
-        onOpenChange={(value) => {
-          if (!value && !busy) setModal(null);
-        }}
+        title={modal?.title}
+        description={modal?.description}
+        busy={busy}
+        onClose={() => setModal(null)}
       >
-        <DialogContent>
-          <DialogTitle className="modal-title">{modal?.title}</DialogTitle>
-          <DialogDescription className="muted modal-description">
-            {modal?.description}
-          </DialogDescription>
-          {notice && modal && (
-            <p className={`notice ${notice.error ? 'error' : 'success'}`} role="alert">
-              {notice.text}
-            </p>
-          )}
-          {modal?.content}
-        </DialogContent>
-      </Dialog>
+        {notice && modal && (
+          <p className={`notice ${notice.error ? 'error' : 'success'}`} role="alert">
+            {notice.text}
+          </p>
+        )}
+        {modal?.content}
+      </Modal>
     </Context.Provider>
   );
 }

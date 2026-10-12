@@ -2,7 +2,7 @@
 import { useTranslations } from 'next-intl';
 import type { VisitType } from '@vet-clinic/types';
 import { api } from '@/lib/api';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Field, formValues } from '@/components/common';
 import { useVet } from '@/components/context';
 export function VisitTypeForm({ type }: { type?: VisitType }) {

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Check, AlertTriangle } from 'lucide-react';
 import type { Appointment, EstimatedActive } from '@vet-clinic/types';
 import { api } from '@/lib/api';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Field, formValues } from '@/components/common';
 import { useVet } from '@/components/context';
 import { ActivesEditor } from '@/modules/appointments/forms/actives-editor';

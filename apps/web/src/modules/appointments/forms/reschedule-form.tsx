@@ -3,7 +3,7 @@ import { useTranslations } from 'next-intl';
 import type { Appointment } from '@vet-clinic/types';
 import { api } from '@/lib/api';
 import { dateInClinic, instant, timeLabel } from '@/lib/time';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Field, formValues } from '@/components/common';
 import { useVet } from '@/components/context';
 export function RescheduleForm({ appointment }: { appointment: Appointment }) {

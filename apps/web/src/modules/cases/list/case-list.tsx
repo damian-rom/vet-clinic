@@ -2,7 +2,7 @@
 import { useTranslations } from 'next-intl';
 import { Heart, Plus, CalendarDays, Link } from 'lucide-react';
 import { dateLabel } from '@/lib/time';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Empty, PageHeading, Status } from '@/components/common';
 import { useClinic } from '@/components/context';
 import { BookingForm } from '@/modules/appointments/forms/booking-form';

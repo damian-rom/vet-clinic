@@ -3,7 +3,7 @@ import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Package, Plus } from 'lucide-react';
 import { dateLabel } from '@/lib/time';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Empty, PageHeading } from '@/components/common';
 import { useVet } from '@/components/context';
 import { AppointmentDetail } from '@/modules/appointments/details/appointment-detail';

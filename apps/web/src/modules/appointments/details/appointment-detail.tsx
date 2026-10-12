@@ -3,7 +3,7 @@ import { useTranslations } from 'next-intl';
 import { Sparkles } from 'lucide-react';
 import { api } from '@/lib/api';
 import { dateLabel } from '@/lib/time';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Field, formValues, Status } from '@/components/common';
 import { useVet } from '@/components/context';
 import { draftAppointments } from '@/modules/appointments/services';

@@ -4,7 +4,7 @@ import { CalendarDays, Heart, PawPrint } from 'lucide-react';
 import type { OwnerAppointment } from '@vet-clinic/types';
 import { api } from '@/lib/api';
 import { dateLabel } from '@/lib/time';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Status } from '@/components/common';
 import { useOwner } from '@/components/context';
 import { BookingForm } from '@/modules/appointments/forms/booking-form';

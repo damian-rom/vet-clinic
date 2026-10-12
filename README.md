@@ -48,7 +48,7 @@ AI and email are explicitly unavailable until configured. The rest of the clinic
 ## Structure and technology
 
 ```text
-apps/web/              Next.js 16 + React 19, adapted shadcn/ui components, next-intl
+apps/web/              Next.js 16 + React 19, custom React components, next-intl
 apps/app/              NestJS 12 API, domain ports and provider adapters, SQLite
 packages/types/        Shared TypeScript domain and response contracts
 packages/validation/   Shared Zod request schemas for browser and server

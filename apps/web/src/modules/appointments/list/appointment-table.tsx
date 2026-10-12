@@ -2,7 +2,7 @@
 import { useTranslations } from 'next-intl';
 import type { Appointment } from '@vet-clinic/types';
 import { dateLabel } from '@/lib/time';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Status } from '@/components/common';
 import { useVet } from '@/components/context';
 import { AppointmentDetail } from '@/modules/appointments/details/appointment-detail';

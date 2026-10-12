@@ -5,7 +5,7 @@ import { ArrowRight } from 'lucide-react';
 import type { OwnerAppointment } from '@vet-clinic/types';
 import { api } from '@/lib/api';
 import { timeLabel, today } from '@/lib/time';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Field, formValues } from '@/components/common';
 import { useOwner } from '@/components/context';
 export function BookingForm({

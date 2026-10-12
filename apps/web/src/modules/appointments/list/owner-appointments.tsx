@@ -2,7 +2,7 @@
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Empty, PageHeading } from '@/components/common';
 import { useOwner } from '@/components/context';
 import { PetForm } from '@/modules/pets/forms/pet-form';

@@ -24,7 +24,7 @@ apps/
   web/src/
     app/                  Next.js entry, layout, error and missing-page views
     modules/              Feature forms, lists and details
-    components/           Shared presentation and adapted shadcn/ui primitives
+    components/           Shared presentation, custom buttons and native modal
     lib/                  API client and date helpers
     i18n/                 English/Spanish messages and locale provider
 packages/
@@ -44,6 +44,8 @@ Calendar intervals are half-open: a visit ending at 10:00 can be followed by one
 Planning forecasts never change stock. Completion validates every actual quantity, then records all Used movements and marks the visit Done in one transaction. A repeat completion cannot deduct stock twice. Corrections record a signed adjustment and require a reason. History is retained.
 
 ## Security and provider boundaries
+
+Shared buttons and button links render native HTML with the existing CSS classes. The custom modal uses the browser's native `dialog` element and a React portal, with labelled content, background isolation, scroll locking, focus restoration, and dismissal protection while a request is running. These components live beside the other shared presentation components.
 
 Passwords use salted scrypt hashes. Random opaque sessions are stored as SHA-256 hashes with expiration; cookies use HttpOnly, SameSite=Lax, and optional Secure. Registration, login and role validation happen on the API. Every protected controller authenticates the session, and every mutation enforces its role and entity ownership in the service. Owner responses exclude planning, AI drafts, inventory and calendar data.
 

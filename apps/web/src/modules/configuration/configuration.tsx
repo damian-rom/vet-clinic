@@ -3,7 +3,7 @@ import { useTranslations } from 'next-intl';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { dateLabel } from '@/lib/time';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Empty, PageHeading } from '@/components/common';
 import { useVet } from '@/components/context';
 import { VisitTypeForm } from '@/modules/configuration/forms/visit-type-form';

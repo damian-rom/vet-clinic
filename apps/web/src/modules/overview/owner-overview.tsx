@@ -1,7 +1,7 @@
 'use client';
 import { useTranslations } from 'next-intl';
 import { ArrowRight, CalendarDays, Heart, PawPrint, Plus, Clock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, ButtonLink } from '@/components/button';
 import { Empty, PageHeading } from '@/components/common';
 import { useOwner } from '@/components/context';
 import { PetForm } from '@/modules/pets/forms/pet-form';
@@ -48,12 +48,10 @@ export function OwnerHome() {
             {translate('everyWagAndPurr')}
           </h2>
           <p>{translate('keepYourFamilySAppointmentsAndFollowUpsTogether')}</p>
-          <Button variant="outline" asChild>
-            <a href="#pets">
-              {translate('meetYourPets')}
-              <ArrowRight size={16} />
-            </a>
-          </Button>
+          <ButtonLink variant="outline" href="#pets">
+            {translate('meetYourPets')}
+            <ArrowRight size={16} />
+          </ButtonLink>
         </div>
         <div className="banner-paw" aria-hidden="true">
           <PawPrint size={110} strokeWidth={1.3} />

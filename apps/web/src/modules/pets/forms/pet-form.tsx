@@ -2,7 +2,7 @@
 import { useTranslations } from 'next-intl';
 import type { Pet } from '@vet-clinic/types';
 import { api } from '@/lib/api';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Field, formValues } from '@/components/common';
 import { useClinic } from '@/components/context';
 export function PetForm({ pet }: { pet?: Pet }) {

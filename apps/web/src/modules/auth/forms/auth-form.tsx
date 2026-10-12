@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { PawPrint, CalendarDays, Heart, ShieldCheck, ArrowRight, Users } from 'lucide-react';
 import { api } from '@/lib/api';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { Field, formValues } from '@/components/common';
 import { LanguageSwitch } from '@/i18n/locale-provider';
 

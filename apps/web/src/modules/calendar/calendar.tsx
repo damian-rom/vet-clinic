@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { addDays, dateInClinic, instant, timeLabel, today } from '@/lib/time';
 import { api } from '@/lib/api';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 import { PageHeading } from '@/components/common';
 import { useVet } from '@/components/context';
 import { AppointmentDetail } from '@/modules/appointments/details/appointment-detail';

@@ -8,7 +8,7 @@ import {
   Sparkles,
   AlertTriangle,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ButtonLink } from '@/components/button';
 import { Empty, PageHeading } from '@/components/common';
 import { useVet } from '@/components/context';
 import { AppointmentTable } from '@/modules/appointments/list/appointment-table';
@@ -32,12 +32,10 @@ export function VetHome() {
         title={translate('goodToSeeYouDrValue0', { value0: data.user.name.split(' ')[0] ?? '' })}
         text={translate('aClearViewOfWhatNeedsYourCareToday')}
         actions={
-          <Button asChild>
-            <a href="#calendar">
-              <CalendarDays size={17} />
-              {translate('myCalendar')}
-            </a>
-          </Button>
+          <ButtonLink href="#calendar">
+            <CalendarDays size={17} />
+            {translate('myCalendar')}
+          </ButtonLink>
         }
       />
       <div className="stats">

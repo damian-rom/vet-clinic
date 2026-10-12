@@ -1,6 +1,6 @@
 'use client';
 import { useTranslations } from 'next-intl';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/button';
 export default function ErrorPage({ reset }: { reset: () => void }) {
   const translate = useTranslations('clinic');
   return (

@@ -5,7 +5,7 @@ import { useLocale } from 'next-intl';
 import { Download, FileText, Mail } from 'lucide-react';
 import { api } from '@/lib/api';
 import { today } from '@/lib/time';
-import { Button } from '@/components/ui/button';
+import { Button, ButtonLink } from '@/components/button';
 import { Empty, Field, PageHeading } from '@/components/common';
 import { useClinic } from '@/components/context';
 type ReportKind = 'care-history' | 'clinic-activity' | 'inventory-usage';
@@ -138,12 +138,10 @@ export function Reports() {
           <Button type="submit" disabled={busy}>
             {translate('generateReport')}
           </Button>
-          <Button asChild variant="outline">
-            <a href={`/api/reports/${kind}?${query}&format=pdf`} download>
-              <Download size={16} />
-              {translate('downloadPdf')}
-            </a>
-          </Button>
+          <ButtonLink variant="outline" href={`/api/reports/${kind}?${query}&format=pdf`} download>
+            <Download size={16} />
+            {translate('downloadPdf')}
+          </ButtonLink>
           <Button
             type="button"
             variant="outline"
