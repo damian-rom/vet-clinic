@@ -1,30 +1,30 @@
+import type { Database, Tx } from '@vet-clinic/db';
 import type { User } from '@vet-clinic/types';
 import { productSchema, stockMovementSchema } from '@vet-clinic/validation';
-import { Store, type State } from '../infrastructure/sqlite/store';
-import { fail, id, requireVet, find, isoNow } from '../domain/rules';
+import { fail, id, requireVet, required, isoNow } from '../domain/rules';
+import { toMovement } from '../infrastructure/prisma/records';
 export class InventoryService {
   constructor(
-    private readonly store: Store,
+    private readonly db: Database,
     private readonly now: () => number,
   ) {}
-  createProduct(user: User, input: unknown) {
+  async createProduct(user: User, input: unknown) {
     requireVet(user);
     const data = productSchema.parse(input);
-    return this.store.transaction((s) => {
-      if (s.products.some((p) => p.name.toLowerCase() === data.name.toLowerCase()))
+    return this.db.write(async (tx) => {
+      const names = await tx.product.findMany({ select: { name: true } });
+      if (names.some((p) => p.name.toLowerCase() === data.name.toLowerCase()))
         fail('A product with this name already exists');
-      const p = { ...data, id: id(), stock: 0 };
-      s.products.push(p);
-      return p;
+      return tx.product.create({ data: { ...data, id: id(), stock: 0 } });
     });
   }
-  movement(user: User, input: unknown) {
+  async movement(user: User, input: unknown) {
     requireVet(user);
     const data = stockMovementSchema.parse(input);
-    return this.store.transaction((s) => this.recordMovement(s, user, data));
+    return this.db.write((tx) => this.recordMovement(tx, user, data));
   }
-  recordMovement(
-    s: State,
+  async recordMovement(
+    tx: Tx,
     user: User,
     data: {
       productId: string;
@@ -34,12 +34,13 @@ export class InventoryService {
       appointmentId?: string;
     },
   ) {
-    const product = find(s.products, data.productId);
+    const product = required(await tx.product.findUnique({ where: { id: data.productId } }));
     const stock = Math.round((product.stock + data.quantity) * 1e8) / 1e8;
     if (stock < 0) fail('Stock cannot become negative');
-    const movement = { ...data, id: id(), performedBy: user.id, performedAt: isoNow(this.now) };
-    product.stock = stock;
-    s.movements.push(movement);
-    return movement;
+    await tx.product.update({ where: { id: product.id }, data: { stock } });
+    const movement = await tx.movement.create({
+      data: { ...data, id: id(), performedBy: user.id, performedAt: isoNow(this.now) },
+    });
+    return toMovement(movement);
   }
 }

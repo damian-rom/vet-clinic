@@ -1,6 +1,14 @@
 import { z } from 'zod';
 
 const text = (max = 200) => z.string().trim().min(1).max(max);
+/** Stored instants share one ISO format so the API can compare them in database queries. */
+const instant = () =>
+  z
+    .string()
+    .datetime()
+    .transform((value) => new Date(value).toISOString());
+/** Longest planned visit; the database enforces the same limit. */
+export const MAX_VISIT_MINUTES = 540;
 export const loginSchema = z
   .object({
     email: z
@@ -45,7 +53,7 @@ export const registerPetSchema = z
     { message: 'Date of birth must be a real date in the past', path: ['dateOfBirth'] },
   );
 export const bookAppointmentSchema = z
-  .object({ petId: text(), symptoms: text(4000), scheduledAt: z.string().datetime() })
+  .object({ petId: text(), symptoms: text(4000), scheduledAt: instant() })
   .strict();
 export const activeSchema = z
   .object({ productId: text(), quantity: z.number().positive().max(1e8) })
@@ -60,7 +68,7 @@ export const activesSchema = z
 export const visitPlanSchema = z
   .object({
     visitTypeId: text(),
-    durationMinutes: z.number().int().min(1).max(540),
+    durationMinutes: z.number().int().min(1).max(MAX_VISIT_MINUTES),
     estimatedActives: activesSchema,
   })
   .strict();
@@ -93,7 +101,7 @@ export const checkpointSchema = z
   .object({
     symptoms: text(4000),
     petNeeded: z.boolean(),
-    scheduledAt: z.string().datetime().optional(),
+    scheduledAt: instant().optional(),
     vetId: text().optional(),
   })
   .strict()
@@ -107,8 +115,8 @@ export const checkpointSchema = z
   );
 export const timeBlockSchema = z
   .object({
-    startsAt: z.string().datetime(),
-    endsAt: z.string().datetime(),
+    startsAt: instant(),
+    endsAt: instant(),
     reason: z.string().trim().max(1000).optional(),
   })
   .strict()
@@ -119,7 +127,7 @@ export const visitTypeSchema = z
 
 export const emptyRequestSchema = z.object({}).strict();
 export const assignVetSchema = z.object({ vetId: text() }).strict();
-export const pickTimeSchema = z.object({ scheduledAt: z.string().datetime() }).strict();
+export const pickTimeSchema = z.object({ scheduledAt: instant() }).strict();
 export const rescheduleSchema = pickTimeSchema.extend({ revision: z.number().int() });
 export const savePlanSchema = visitPlanSchema.extend({ revision: z.number().int() });
 export const completeVisitSchema = z

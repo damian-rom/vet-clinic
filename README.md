@@ -18,9 +18,9 @@ Setup creates ignored environment files without overwriting existing settings. R
 
 The API listens on port 3001. Next.js forwards same-origin `/api` requests to it. Data persists in `apps/app/data/clinic.sqlite`; restarting the app preserves accounts, appointments and stock. Keep this database private and back it up while the API is stopped, or use SQLite's backup facilities. Database files, credentials and local planning inputs must never be committed.
 
-The database uses relational columns and foreign keys. Plans, original AI drafts and product-usage lists have their own related tables. You can inspect the SQLite file with a SQLite database viewer; see [the data model](docs/architecture.md#data-and-transaction-model) for the table relationships.
+The schema lives in `packages/db` as a Prisma model with SQL migrations. `npm run dev` and `npm start` apply pending migrations before the API starts; run `npm run db:migrate` to apply them yourself. The API refuses to open a database with unapplied migrations. Plans, original AI drafts and product-usage lists have their own related tables. You can inspect the SQLite file with a SQLite database viewer; see [the data model](docs/architecture.md#data-and-transaction-model) for the table relationships.
 
-Existing databases with `id`/`document` tables migrate automatically when this version of the API starts. Stop the previous API and back up the database before upgrading. Conversion preserves entity fields, passwords, sessions and history in one transaction; invalid data aborts startup and retains the original tables. Reverting to the previous application version requires restoring its pre-migration database backup.
+This release starts from a fresh Prisma baseline. Databases created by earlier versions, including the original `id`/`document` tables, are not converted; start with a new database file.
 
 ## Provider settings
 
@@ -53,7 +53,8 @@ AI and email are explicitly unavailable until configured. The rest of the clinic
 
 ```text
 apps/web/              Next.js 16 + React 19, custom React components, next-intl
-apps/app/              NestJS 12 API, domain ports and provider adapters, SQLite
+apps/app/              NestJS 12 API, domain ports and provider adapters
+packages/db/           Prisma schema, SQL migrations and the SQLite client
 packages/types/        Shared TypeScript domain and response contracts
 packages/validation/   Shared Zod request schemas for browser and server
 packages/config/       Fixed clinic hours, slots and default visit types

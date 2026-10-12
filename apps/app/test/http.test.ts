@@ -6,12 +6,12 @@ import { createServer } from '../src/server';
 import { fixture, PASSWORD, TIME, DAY, CODE } from './helpers';
 
 test('HTTP authentication, cookies, access controls, booking, cases, reports and JSON validation', async (t) => {
-  const f = fixture();
+  const f = await fixture();
   const app = await createServer(f.clinic);
   await app.listen(0, '127.0.0.1');
   t.after(async () => {
     await app.close();
-    f.store.close();
+    f.db.close();
   });
   const base = await app.getUrl();
   const request = (
@@ -160,15 +160,15 @@ test('HTTP authentication, cookies, access controls, booking, cases, reports and
 });
 
 test('HTTP simultaneous bookings accept exactly available capacity', async (t) => {
-  const f = fixture({ vets: 1 });
+  const f = await fixture({ vets: 1 });
   const app = await createServer(f.clinic);
   await app.listen(0, '127.0.0.1');
   t.after(async () => {
     await app.close();
-    f.store.close();
+    f.db.close();
   });
   const base = await app.getUrl();
-  const login = f.clinic.auth.login({ email: 'owner@example.com', password: PASSWORD });
+  const login = await f.clinic.auth.login({ email: 'owner@example.com', password: PASSWORD });
   const results = await Promise.all(
     Array.from({ length: 8 }, () =>
       fetch(`${base}/api/appointments`, {

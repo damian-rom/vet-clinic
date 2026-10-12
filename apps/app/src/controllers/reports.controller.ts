@@ -28,7 +28,7 @@ export class ReportsController {
   ) {
     const { format, ...filters } = query;
     if (format && format !== 'pdf') throw new HttpException('Unknown report format', 400);
-    const report = this.clinic.reports.build(user, kind, filters);
+    const report = await this.clinic.reports.build(user, kind, filters);
     if (format === 'pdf') {
       const pdf = await this.clinic.reports.pdf(report);
       response.setHeader('Content-Type', 'application/pdf');

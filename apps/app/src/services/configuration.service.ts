@@ -1,71 +1,77 @@
+import type { Database } from '@vet-clinic/db';
 import type { User } from '@vet-clinic/types';
-import { timeBlockSchema, visitTypeSchema } from '@vet-clinic/validation';
-import { Store } from '../infrastructure/sqlite/store';
+import { MAX_VISIT_MINUTES, timeBlockSchema, visitTypeSchema } from '@vet-clinic/validation';
 import { endOf, overlaps } from '../time';
-import { fail, id, duration, requireVet, find } from '../domain/rules';
+import { fail, id, requireVet, required } from '../domain/rules';
+import { toTimeBlock } from '../infrastructure/prisma/records';
 export class ConfigurationService {
   constructor(
-    private readonly store: Store,
+    private readonly db: Database,
     private readonly now: () => number,
   ) {}
-  visitType(user: User, input: unknown, key?: string) {
+  async visitType(user: User, input: unknown, key?: string) {
     requireVet(user);
     const data = visitTypeSchema.parse(input);
-    return this.store.transaction((s) => {
-      if (
-        s.visitTypes.some((t) => t.id !== key && t.name.toLowerCase() === data.name.toLowerCase())
-      )
+    return this.db.write(async (tx) => {
+      const types = await tx.visitType.findMany({ select: { id: true, name: true } });
+      if (types.some((t) => t.id !== key && t.name.toLowerCase() === data.name.toLowerCase()))
         fail('A visit type with this name already exists');
       if (key) {
-        const t = find(s.visitTypes, key);
-        Object.assign(t, data);
-        return t;
+        required(await tx.visitType.findUnique({ where: { id: key } }));
+        return tx.visitType.update({ where: { id: key }, data });
       }
-      const t = { ...data, id: id(), retired: data.retired || false };
-      s.visitTypes.push(t);
-      return t;
+      return tx.visitType.create({ data: { ...data, id: id(), retired: data.retired || false } });
     });
   }
-  deleteVisitType(user: User, key: string) {
+  async deleteVisitType(user: User, key: string) {
     requireVet(user);
-    return this.store.transaction((s) => {
-      find(s.visitTypes, key);
+    return this.db.write(async (tx) => {
+      required(await tx.visitType.findUnique({ where: { id: key } }));
       if (
-        s.appointments.some(
-          (a) => a.plan?.visitTypeId === key || a.plan?.originalDraft?.visitTypeId === key,
-        )
+        (await tx.appointmentPlan.count({ where: { visitTypeId: key } })) ||
+        (await tx.appointmentAiDraft.count({ where: { visitTypeId: key } }))
       )
         fail('Used visit types can be retired but never deleted');
-      s.visitTypes = s.visitTypes.filter((t) => t.id !== key);
+      await tx.visitType.delete({ where: { id: key } });
       return { ok: true };
     });
   }
-  timeBlock(user: User, input: unknown) {
+  async timeBlock(user: User, input: unknown) {
     requireVet(user);
     const data = timeBlockSchema.parse(input);
-    return this.store.transaction((s) => {
+    return this.db.write(async (tx) => {
       const start = Date.parse(data.startsAt);
       const end = Date.parse(data.endsAt);
       if (end <= this.now()) fail('Choose a future time block');
+      const visits = await tx.appointment.findMany({
+        where: {
+          status: { not: 'Cancelled' },
+          scheduledAt: {
+            gte: new Date(start - MAX_VISIT_MINUTES * 60_000).toISOString(),
+            lt: data.endsAt,
+          },
+        },
+        select: { scheduledAt: true, plan: { select: { durationMinutes: true } } },
+      });
       if (
-        s.appointments.some(
-          (a) =>
-            a.status !== 'Cancelled' &&
-            a.scheduledAt &&
-            overlaps(start, end, Date.parse(a.scheduledAt), endOf(a.scheduledAt, duration(a))),
+        visits.some((a) =>
+          overlaps(
+            start,
+            end,
+            Date.parse(a.scheduledAt!),
+            endOf(a.scheduledAt!, a.plan?.durationMinutes || 30),
+          ),
         )
       )
         fail('A block cannot overlap an existing appointment');
-      const b = { ...data, id: id() };
-      s.timeBlocks.push(b);
-      return b;
+      return toTimeBlock(await tx.timeBlock.create({ data: { ...data, id: id() } }));
     });
   }
-  deleteTimeBlock(user: User, key: string) {
+  async deleteTimeBlock(user: User, key: string) {
     requireVet(user);
-    return this.store.transaction((s) => {
-      find(s.timeBlocks, key);
-      s.timeBlocks = s.timeBlocks.filter((b) => b.id !== key);
+    return this.db.write(async (tx) => {
+      required(await tx.timeBlock.findUnique({ where: { id: key } }));
+      await tx.timeBlock.delete({ where: { id: key } });
       return { ok: true };
     });
   }

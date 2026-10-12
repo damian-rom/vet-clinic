@@ -1,0 +1,277 @@
+// Clinic persistence model. CHECK constraints and case-insensitive email uniqueness cannot
+// be expressed here; they live in the migration SQL. Review every generated migration that
+// redefines a table so those rules are kept.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  owner
+  vet
+}
+
+enum Species {
+  Dog
+  Cat
+  Rabbit
+  Bird
+  Other
+}
+
+enum Sex {
+  Male
+  Female
+}
+
+enum AppointmentStatus {
+  AwaitingConfirmation
+  Confirmed
+  NeedsTime
+  Done
+  Cancelled
+}
+
+enum MovementType {
+  Received
+  Correction
+  Used
+}
+
+model User {
+  id           String @id
+  name         String
+  email        String @unique
+  role         Role
+  passwordHash String @map("password_hash")
+
+  sessions          Session[]
+  pets              Pet[]
+  ownedAppointments Appointment[]     @relation("AppointmentOwner")
+  vetAppointments   Appointment[]     @relation("AppointmentVet")
+  movements         Movement[]
+  reviewedPlans     AppointmentPlan[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String @id
+  userId    String @map("user_id")
+  /// Milliseconds since the Unix epoch.
+  expiresAt BigInt @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([userId], map: "sessions_user_idx")
+  @@index([expiresAt], map: "sessions_expiration_idx")
+  @@map("sessions")
+}
+
+model Pet {
+  id             String  @id
+  ownerId        String  @map("owner_id")
+  name           String
+  species        Species
+  sex            Sex
+  dateOfBirth    String? @map("date_of_birth")
+  approximateAge String? @map("approximate_age")
+  breed          String?
+  weight         Float?
+  notes          String?
+
+  owner        User          @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cases        Case[]
+  appointments Appointment[]
+
+  @@unique([id, ownerId])
+  @@index([ownerId], map: "pets_owner_idx")
+  @@map("pets")
+}
+
+model Case {
+  id        String @id
+  petId     String @map("pet_id")
+  name      String
+  createdAt String @map("created_at")
+
+  pet         Pet           @relation(fields: [petId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  checkpoints Appointment[]
+
+  @@unique([id, petId])
+  @@index([petId], map: "cases_pet_idx")
+  @@map("cases")
+}
+
+model Appointment {
+  id                    String            @id
+  petId                 String            @map("pet_id")
+  ownerId               String            @map("owner_id")
+  vetId                 String?           @map("vet_id")
+  scheduledAt           String?           @map("scheduled_at")
+  symptoms              String
+  status                AppointmentStatus
+  caseId                String?           @map("case_id")
+  checkpointOrder       Int?              @map("checkpoint_order")
+  petNeeded             Boolean?          @map("pet_needed")
+  createdAt             String            @map("created_at")
+  completedAt           String?           @map("completed_at")
+  revision              Int
+  /// Distinguishes an empty recorded usage list from usage that was never recorded.
+  actualActivesRecorded Boolean           @default(false) @map("actual_actives_recorded")
+
+  owner         User                      @relation("AppointmentOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  vet           User?                     @relation("AppointmentVet", fields: [vetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  pet           Pet                       @relation(fields: [petId, ownerId], references: [id, ownerId], onDelete: NoAction, onUpdate: NoAction)
+  case          Case?                     @relation(fields: [caseId, petId], references: [id, petId], onDelete: NoAction, onUpdate: NoAction)
+  plan          AppointmentPlan?
+  actualActives AppointmentActualActive[]
+  movements     Movement[]
+
+  @@unique([caseId, checkpointOrder])
+  @@index([petId, ownerId], map: "appointments_pet_idx")
+  @@index([ownerId], map: "appointments_owner_idx")
+  @@index([vetId, scheduledAt], map: "appointments_vet_time_idx")
+  @@index([status, scheduledAt], map: "appointments_status_time_idx")
+  @@index([caseId, petId], map: "appointments_case_pet_idx")
+  @@map("appointments")
+}
+
+model Product {
+  id    String @id
+  name  String
+  unit  String
+  stock Float
+
+  movements        Movement[]
+  estimatedActives AppointmentEstimatedActive[]
+  draftActives     AppointmentDraftActive[]
+  actualActives    AppointmentActualActive[]
+
+  @@map("products")
+}
+
+model Movement {
+  id            String       @id
+  productId     String       @map("product_id")
+  type          MovementType
+  quantity      Float
+  reason        String?
+  performedBy   String       @map("performed_by")
+  performedAt   String       @map("performed_at")
+  appointmentId String?      @map("appointment_id")
+
+  product     Product      @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  performer   User         @relation(fields: [performedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([productId, performedAt], map: "movements_product_time_idx")
+  @@index([performedBy], map: "movements_performer_idx")
+  @@index([appointmentId], map: "movements_appointment_idx")
+  @@map("movements")
+}
+
+model VisitType {
+  id      String  @id
+  name    String
+  retired Boolean
+
+  plans  AppointmentPlan[]
+  drafts AppointmentAiDraft[]
+
+  @@map("visit_types")
+}
+
+model TimeBlock {
+  id       String  @id
+  startsAt String  @map("starts_at")
+  endsAt   String  @map("ends_at")
+  reason   String?
+
+  @@index([startsAt, endsAt], map: "time_blocks_interval_idx")
+  @@map("time_blocks")
+}
+
+model AppointmentPlan {
+  appointmentId   String  @id @map("appointment_id")
+  visitTypeId     String  @map("visit_type_id")
+  durationMinutes Int     @map("duration_minutes")
+  /// One of human, ai-draft or ai-reviewed (enforced by a CHECK constraint).
+  source          String
+  reviewedBy      String? @map("reviewed_by")
+  savedAt         String  @map("saved_at")
+
+  appointment      Appointment                  @relation(fields: [appointmentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  visitType        VisitType                    @relation(fields: [visitTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewer         User?                        @relation(fields: [reviewedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  originalDraft    AppointmentAiDraft?
+  estimatedActives AppointmentEstimatedActive[]
+
+  @@index([visitTypeId], map: "plans_visit_type_idx")
+  @@index([reviewedBy], map: "plans_reviewer_idx")
+  @@map("appointment_plans")
+}
+
+model AppointmentAiDraft {
+  appointmentId   String @id @map("appointment_id")
+  visitTypeId     String @map("visit_type_id")
+  durationMinutes Int    @map("duration_minutes")
+
+  plan             AppointmentPlan          @relation(fields: [appointmentId], references: [appointmentId], onDelete: Cascade, onUpdate: NoAction)
+  visitType        VisitType                @relation(fields: [visitTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  estimatedActives AppointmentDraftActive[]
+
+  @@index([visitTypeId], map: "drafts_visit_type_idx")
+  @@map("appointment_ai_drafts")
+}
+
+model AppointmentEstimatedActive {
+  appointmentId String @map("appointment_id")
+  position      Int
+  productId     String @map("product_id")
+  quantity      Float
+
+  plan    AppointmentPlan @relation(fields: [appointmentId], references: [appointmentId], onDelete: Cascade, onUpdate: NoAction)
+  product Product         @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([appointmentId, productId])
+  @@unique([appointmentId, position])
+  @@index([productId], map: "estimated_actives_product_idx")
+  @@map("appointment_estimated_actives")
+}
+
+model AppointmentDraftActive {
+  appointmentId String @map("appointment_id")
+  position      Int
+  productId     String @map("product_id")
+  quantity      Float
+
+  draft   AppointmentAiDraft @relation(fields: [appointmentId], references: [appointmentId], onDelete: Cascade, onUpdate: NoAction)
+  product Product            @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([appointmentId, productId])
+  @@unique([appointmentId, position])
+  @@index([productId], map: "draft_actives_product_idx")
+  @@map("appointment_draft_actives")
+}
+
+model AppointmentActualActive {
+  appointmentId String @map("appointment_id")
+  position      Int
+  productId     String @map("product_id")
+  quantity      Float
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product     Product     @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([appointmentId, productId])
+  @@unique([appointmentId, position])
+  @@index([productId], map: "actual_actives_product_idx")
+  @@map("appointment_actual_actives")
+}
