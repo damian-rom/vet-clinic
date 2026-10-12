@@ -18,6 +18,10 @@ Setup creates ignored environment files without overwriting existing settings. R
 
 The API listens on port 3001. Next.js forwards same-origin `/api` requests to it. Data persists in `apps/app/data/clinic.sqlite`; restarting the app preserves accounts, appointments and stock. Keep this database private and back it up while the API is stopped, or use SQLite's backup facilities. Database files, credentials and local planning inputs must never be committed.
 
+The database uses relational columns and foreign keys. Plans, original AI drafts and product-usage lists have their own related tables. You can inspect the SQLite file with a SQLite database viewer; see [the data model](docs/architecture.md#data-and-transaction-model) for the table relationships.
+
+Existing databases with `id`/`document` tables migrate automatically when this version of the API starts. Stop the previous API and back up the database before upgrading. Conversion preserves entity fields, passwords, sessions and history in one transaction; invalid data aborts startup and retains the original tables. Reverting to the previous application version requires restoring its pre-migration database backup.
+
 ## Provider settings
 
 Edit `apps/app/.env` to enable external features:
