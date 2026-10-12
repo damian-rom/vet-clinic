@@ -3,18 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx watch src/main.ts",
+    "dev": "npm run db:migrate && tsx watch src/main.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/main",
+    "start": "npm run db:migrate && node dist/main",
+    "db:migrate": "prisma migrate deploy --config ../../packages/db/prisma.config.ts",
+    "db:migrate:dev": "prisma migrate dev --config ../../packages/db/prisma.config.ts",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test --test-timeout=60000 test/*.test.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.1.2",
     "@nestjs/core": "^12.1.2",
     "@nestjs/platform-express": "^12.1.2",
     "@vet-clinic/config": "*",
+    "@vet-clinic/db": "*",
     "@vet-clinic/types": "*",
     "@vet-clinic/validation": "*",
     "dotenv": "^17.0.0",
@@ -30,6 +33,7 @@
     "@types/node": "^24.0.0",
     "@types/nodemailer": "^8.0.2",
     "@types/pdfkit": "^0.17.6",
+    "prisma": "7.10.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }

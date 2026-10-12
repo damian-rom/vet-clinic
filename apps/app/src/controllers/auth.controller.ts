@@ -18,8 +18,8 @@ export class AuthController {
     return this.signedIn(this.clinic.auth.login(body), res);
   }
   @Post('auth/logout')
-  logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    this.clinic.auth.logout(sessionToken(req));
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    await this.clinic.auth.logout(sessionToken(req));
     this.cookie(res, '', 0);
     return { ok: true };
   }
@@ -29,7 +29,8 @@ export class AuthController {
       `vet_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`,
     );
   }
-  private signedIn(result: ReturnType<Clinic['auth']['login']>, res: Response) {
+  private async signedIn(pending: ReturnType<Clinic['auth']['login']>, res: Response) {
+    const result = await pending;
     this.cookie(res, result.token, 7 * 86400);
     return { user: result.user };
   }

@@ -1,4 +1,4 @@
-import { Store } from './infrastructure/sqlite/store';
+import type { Database } from '@vet-clinic/db';
 import type { PlanningPort } from './domain/ports/planning.port';
 import { CompatibleAiAdapter } from './infrastructure/ai/chat-completions.adapter';
 import { AuthService } from './services/auth.service';
@@ -13,7 +13,7 @@ import { ReportsService } from './services/reports.service';
 import type { EmailPort } from './domain/ports/email.port';
 import { SmtpEmailAdapter } from './infrastructure/email/smtp.adapter';
 
-/** Composition root. Each feature owns its use cases; the store owns transaction boundaries. */
+/** Composition root. Each feature owns its use cases; the database owns transaction boundaries. */
 export class Clinic {
   readonly auth: AuthService;
   readonly pets: PetsService;
@@ -25,20 +25,20 @@ export class Clinic {
   readonly views: WorkspaceService;
   readonly reports: ReportsService;
   constructor(
-    readonly store: Store,
+    readonly db: Database,
     readonly ai: PlanningPort = new CompatibleAiAdapter(),
     readonly now = () => Date.now(),
     timezone = process.env.CLINIC_TIMEZONE || 'America/Havana',
     email: EmailPort = new SmtpEmailAdapter(),
   ) {
-    this.auth = new AuthService(store, now);
-    this.pets = new PetsService(store);
-    this.inventory = new InventoryService(store, now);
-    this.appointments = new AppointmentsService(store, this.inventory, now, timezone);
-    this.planning = new PlanningService(store, ai, this.appointments, now);
-    this.cases = new CasesService(store, this.appointments, now);
-    this.configuration = new ConfigurationService(store, now);
-    this.views = new WorkspaceService(store, ai, now, timezone);
-    this.reports = new ReportsService(store, email);
+    this.auth = new AuthService(db, now);
+    this.pets = new PetsService(db);
+    this.inventory = new InventoryService(db, now);
+    this.appointments = new AppointmentsService(db, this.inventory, now, timezone);
+    this.planning = new PlanningService(db, ai, this.appointments, now);
+    this.cases = new CasesService(db, this.appointments, now);
+    this.configuration = new ConfigurationService(db, now);
+    this.views = new WorkspaceService(db, ai, now, timezone);
+    this.reports = new ReportsService(db, email);
   }
 }

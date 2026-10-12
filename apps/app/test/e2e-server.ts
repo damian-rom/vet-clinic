@@ -1,14 +1,22 @@
 import { createServer } from '../src/server';
+import { createAppointment } from '../src/infrastructure/prisma/records';
 import { fixture } from './helpers';
 
 async function main() {
-  const f = fixture();
+  const f = await fixture();
   f.clock.value = Date.now();
-  const product = f.clinic.inventory.createProduct(f.vets[0], { name: 'Vaccine', unit: 'dose' });
-  f.clinic.inventory.movement(f.vets[0], { productId: product.id, type: 'Received', quantity: 10 });
+  const product = await f.clinic.inventory.createProduct(f.vets[0], {
+    name: 'Vaccine',
+    unit: 'dose',
+  });
+  await f.clinic.inventory.movement(f.vets[0], {
+    productId: product.id,
+    type: 'Received',
+    quantity: 10,
+  });
   // An isolated in-memory past visit exercises completion through the UI.
-  f.store.transaction((s) =>
-    s.appointments.push({
+  await f.db.write((tx) =>
+    createAppointment(tx, {
       id: 'ready-to-complete',
       ownerId: f.owner.id,
       petId: f.pet.id,

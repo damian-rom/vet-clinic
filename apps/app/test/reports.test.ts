@@ -6,78 +6,86 @@ import { CompatibleAiAdapter } from '../src/infrastructure/ai/chat-completions.a
 import { fixture, TIME } from './helpers';
 
 test('three joined-data reports, role boundaries, PDF generation and account-only delivery', async (t) => {
-  const f = fixture();
-  t.after(() => f.store.close());
-  const a = f.book();
-  f.plan(a.id);
-  const p = f.clinic.inventory.createProduct(f.vets[0], { name: 'Vaccine', unit: 'dose' });
-  f.clinic.inventory.movement(f.vets[0], { productId: p.id, type: 'Received', quantity: 3 });
+  const f = await fixture();
+  t.after(() => f.db.close());
+  const a = await f.book();
+  await f.plan(a.id);
+  const p = await f.clinic.inventory.createProduct(f.vets[0], { name: 'Vaccine', unit: 'dose' });
+  await f.clinic.inventory.movement(f.vets[0], { productId: p.id, type: 'Received', quantity: 3 });
   const filters = { from: '2030-01-01', to: '2030-12-31', language: 'es' };
   for (const kind of ['care-history', 'clinic-activity', 'inventory-usage']) {
-    const report = f.clinic.reports.build(f.vets[0], kind, filters);
+    const report = await f.clinic.reports.build(f.vets[0], kind, filters);
     assert.equal(report.rows.length, 1);
     const pdf = await f.clinic.reports.pdf(report);
     assert.ok(pdf.length > 1000);
     assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
   }
-  const own = f.clinic.reports.build(f.owner, 'care-history', filters);
+  const own = await f.clinic.reports.build(f.owner, 'care-history', filters);
   assert.equal(own.columns.length, 5);
   assert.ok(!JSON.stringify(own).includes('type-1'));
-  assert.throws(() => f.clinic.reports.build(f.owner, 'inventory-usage', filters));
-  assert.throws(() =>
+  await assert.rejects(async () => f.clinic.reports.build(f.owner, 'inventory-usage', filters));
+  await assert.rejects(async () =>
     f.clinic.reports.build(f.owner, 'care-history', { ...filters, from: '2030-02-30' }),
   );
   await f.clinic.reports.emailReport(f.owner, 'care-history', filters);
   assert.equal(f.email.messages[0].to, f.owner.email);
-  await assert.rejects(() =>
-    f.clinic.reports.emailReport(f.owner, 'care-history', {
-      ...filters,
-      toEmail: 'attacker@example.com',
-    }),
+  await assert.rejects(
+    async () =>
+      await f.clinic.reports.emailReport(f.owner, 'care-history', {
+        ...filters,
+        toEmail: 'attacker@example.com',
+      }),
   );
   assert.equal(
-    f.clinic.reports.build(f.owner, 'care-history', {
-      ...filters,
-      from: '2031-01-01',
-      to: '2031-12-31',
-    }).rows.length,
+    (
+      await f.clinic.reports.build(f.owner, 'care-history', {
+        ...filters,
+        from: '2031-01-01',
+        to: '2031-12-31',
+      })
+    ).rows.length,
     0,
   );
-  assert.ok(f.appointment(a.id).scheduledAt === TIME);
+  assert.ok((await f.appointment(a.id)).scheduledAt === TIME);
 });
 
-test('relational report joins filter owners, pets, dates, unscheduled visits and actual inventory usage', (t) => {
-  const f = fixture();
-  t.after(() => f.store.close());
-  const a = f.book();
-  f.plan(a.id, [], 45);
-  f.clinic.appointments.appointment(f.vets[0], a.id, 'assign', { vetId: f.vets[0].id });
-  const otherOwner = f.clinic.auth.register({
-    name: 'Other owner',
-    email: 'other@example.com',
-    password: 'correct-horse-battery',
-  }).user;
-  const otherPet = f.clinic.pets.pet(otherOwner, {
+test('relational report joins filter owners, pets, dates, unscheduled visits and actual inventory usage', async (t) => {
+  const f = await fixture();
+  t.after(() => f.db.close());
+  const a = await f.book();
+  await f.plan(a.id, [], 45);
+  await f.clinic.appointments.appointment(f.vets[0], a.id, 'assign', { vetId: f.vets[0].id });
+  const otherOwner = (
+    await f.clinic.auth.register({
+      name: 'Other owner',
+      email: 'other@example.com',
+      password: 'correct-horse-battery',
+    })
+  ).user;
+  const otherPet = await f.clinic.pets.pet(otherOwner, {
     name: 'Rex',
     species: 'Dog',
     sex: 'Male',
     approximateAge: '2 years',
   });
-  const b = f.clinic.appointments.book(otherOwner, {
+  const b = await f.clinic.appointments.book(otherOwner, {
     petId: otherPet.id,
     symptoms: 'Checkup',
     scheduledAt: '2030-01-07T16:00:00.000Z',
   });
-  f.plan(b.id);
-  f.clinic.appointments.appointment(f.vets[0], b.id, 'assign', { vetId: f.vets[1].id });
-  const careCase = f.clinic.cases.createCase(f.vets[0], { petId: f.pet.id, name: 'Follow-up' });
-  f.clinic.cases.checkpoint(f.vets[0], careCase.id, { symptoms: 'Recheck', petNeeded: true });
+  await f.plan(b.id);
+  await f.clinic.appointments.appointment(f.vets[0], b.id, 'assign', { vetId: f.vets[1].id });
+  const careCase = await f.clinic.cases.createCase(f.vets[0], {
+    petId: f.pet.id,
+    name: 'Follow-up',
+  });
+  await f.clinic.cases.checkpoint(f.vets[0], careCase.id, { symptoms: 'Recheck', petNeeded: true });
   const filters = { from: '2030-01-07', to: '2030-01-07' };
-  const ownReport = f.clinic.reports.build(f.owner, 'care-history', filters);
+  const ownReport = await f.clinic.reports.build(f.owner, 'care-history', filters);
   assert.equal(ownReport.rows.length, 2);
   assert.ok(ownReport.rows.every((row) => row[0] === 'Luna' && row[1] === 'Owner'));
   assert.ok(ownReport.rows.some((row) => row[2] === 'No time' && row[3] === 'NeedsTime'));
-  const activity = f.clinic.reports.build(f.vets[0], 'clinic-activity', filters);
+  const activity = await f.clinic.reports.build(f.vets[0], 'clinic-activity', filters);
   assert.equal(activity.rows.length, 3);
   assert.ok(
     activity.rows.some(
@@ -85,30 +93,38 @@ test('relational report joins filter owners, pets, dates, unscheduled visits and
     ),
   );
   assert.equal(
-    f.clinic.reports.build(f.vets[0], 'clinic-activity', { ...filters, petId: otherPet.id }).rows
-      .length,
+    (await f.clinic.reports.build(f.vets[0], 'clinic-activity', { ...filters, petId: otherPet.id }))
+      .rows.length,
     1,
   );
-  assert.throws(() =>
+  await assert.rejects(async () =>
     f.clinic.reports.build(f.owner, 'care-history', { ...filters, petId: otherPet.id }),
   );
-  assert.equal(f.clinic.reports.build(otherOwner, 'care-history', filters).rows.length, 1);
+  assert.equal((await f.clinic.reports.build(otherOwner, 'care-history', filters)).rows.length, 1);
   assert.equal(
-    f.clinic.reports.build(f.vets[0], 'clinic-activity', { from: '2030-01-08', to: '2030-01-09' })
-      .rows.length,
+    (
+      await f.clinic.reports.build(f.vets[0], 'clinic-activity', {
+        from: '2030-01-08',
+        to: '2030-01-09',
+      })
+    ).rows.length,
     0,
   );
-  const product = f.clinic.inventory.createProduct(f.vets[0], { name: 'Dose', unit: 'dose' });
-  f.clinic.inventory.movement(f.vets[0], { productId: product.id, type: 'Received', quantity: 3 });
+  const product = await f.clinic.inventory.createProduct(f.vets[0], { name: 'Dose', unit: 'dose' });
+  await f.clinic.inventory.movement(f.vets[0], {
+    productId: product.id,
+    type: 'Received',
+    quantity: 3,
+  });
   f.clock.value = Date.parse('2030-01-07T17:00:00.000Z');
   for (const id of [a.id, b.id])
-    f.clinic.appointments.appointment(f.vets[0], id, 'complete', {
+    await f.clinic.appointments.appointment(f.vets[0], id, 'complete', {
       actualActives: [{ productId: product.id, quantity: 1 }],
-      revision: f.appointment(id).revision,
+      revision: (await f.appointment(id)).revision,
     });
-  const allUsage = f.clinic.reports.build(f.vets[0], 'inventory-usage', filters);
+  const allUsage = await f.clinic.reports.build(f.vets[0], 'inventory-usage', filters);
   assert.equal(allUsage.rows.length, 3);
-  const petUsage = f.clinic.reports.build(f.vets[0], 'inventory-usage', {
+  const petUsage = await f.clinic.reports.build(f.vets[0], 'inventory-usage', {
     ...filters,
     petId: f.pet.id,
   });

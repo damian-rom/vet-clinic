@@ -18,9 +18,9 @@ interface AuthenticatedRequest extends Request {
 export class SessionGuard implements CanActivate {
   constructor(@Inject(CLINIC) private readonly clinic: Clinic) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    request.clinicUser = this.clinic.auth.authenticate(sessionToken(request));
+    request.clinicUser = await this.clinic.auth.authenticate(sessionToken(request));
     return true;
   }
 }

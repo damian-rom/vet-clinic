@@ -1,8 +1,8 @@
 import PDFDocument from 'pdfkit';
 import { z } from 'zod';
 import type { User } from '@vet-clinic/types';
-import { Store } from '../infrastructure/sqlite/store';
-import { fail, find, requireVet } from '../domain/rules';
+import type { Database } from '@vet-clinic/db';
+import { fail, required, requireVet } from '../domain/rules';
 import type { EmailPort } from '../domain/ports/email.port';
 import { SmtpEmailAdapter } from '../infrastructure/email/smtp.adapter';
 
@@ -34,117 +34,109 @@ export interface ClinicReport {
   language: 'en' | 'es';
 }
 
-/** Reports use SQL joins between real persisted tables, never caller-supplied SQL. */
+/** The day after a YYYY-MM-DD date, as an exclusive upper bound for stored ISO instants. */
+const nextDay = (date: string) => new Date(Date.parse(date) + 86400_000).toISOString().slice(0, 10);
+
+/** Reports read related tables through Prisma relations, never caller-supplied SQL. */
 export class ReportsService {
   constructor(
-    private readonly store: Store,
+    private readonly db: Database,
     readonly email: EmailPort = new SmtpEmailAdapter(),
   ) {}
 
-  build(user: User, kindInput: unknown, input: unknown): ClinicReport {
+  async build(user: User, kindInput: unknown, input: unknown): Promise<ClinicReport> {
     const kind = reportKindSchema.parse(kindInput);
     const filters = reportFiltersSchema.parse(input);
     const spanish = filters.language === 'es';
     if (kind !== 'care-history') requireVet(user);
-    if (filters.petId) {
-      const pet = find(this.store.read().pets, filters.petId);
-      if (user.role === 'owner' && pet.ownerId !== user.id) fail('Record not found', 404);
-    }
-    // Owner rows deliberately exclude visit plans, actives and AI provenance.
-    if (kind === 'care-history' || kind === 'clinic-activity') {
-      const ownerId = user.role === 'owner' ? user.id : '';
-      const petId = filters.petId || '';
-      const joined = this.store.query(
-        `
-        SELECT p.name AS pet_name, o.name AS owner_name,
-               a.scheduled_at, a.status, v.name AS vet_name,
-               t.name AS visit_type_name, COALESCE(plan.duration_minutes, 30) AS duration_minutes
-        FROM appointments a
-        JOIN pets p ON p.id = a.pet_id
-        JOIN users o ON o.id = a.owner_id
-        LEFT JOIN users v ON v.id = a.vet_id
-        LEFT JOIN appointment_plans plan ON plan.appointment_id = a.id
-        LEFT JOIN visit_types t ON t.id = plan.visit_type_id
-        WHERE substr(COALESCE(a.scheduled_at, a.created_at), 1, 10) BETWEEN ? AND ?
-          AND (? = '' OR a.owner_id = ?)
-          AND (? = '' OR a.pet_id = ?)
-        ORDER BY COALESCE(a.scheduled_at, a.created_at), a.rowid
-      `,
-        filters.from,
-        filters.to,
-        ownerId,
-        ownerId,
-        petId,
-        petId,
-      );
-      const rows = joined.map((row) => {
-        const values = [
-          String(row.pet_name),
-          String(row.owner_name),
-          String(row.scheduled_at ?? (spanish ? 'Sin hora' : 'No time')),
-          String(row.status),
-          String(row.vet_name ?? '—'),
-        ];
+    const range = { gte: filters.from, lt: nextDay(filters.to) };
+    return this.db.read(async (tx) => {
+      if (filters.petId) {
+        const pet = required(await tx.pet.findUnique({ where: { id: filters.petId } }));
+        if (user.role === 'owner' && pet.ownerId !== user.id) fail('Record not found', 404);
+      }
+      // Owner rows deliberately exclude visit plans, actives and AI provenance.
+      if (kind === 'care-history' || kind === 'clinic-activity') {
+        const appointments = await tx.appointment.findMany({
+          where: {
+            OR: [{ scheduledAt: range }, { scheduledAt: null, createdAt: range }],
+            ...(user.role === 'owner' ? { ownerId: user.id } : {}),
+            ...(filters.petId ? { petId: filters.petId } : {}),
+          },
+          select: {
+            scheduledAt: true,
+            createdAt: true,
+            status: true,
+            pet: { select: { name: true } },
+            owner: { select: { name: true } },
+            vet: { select: { name: true } },
+            plan: { select: { durationMinutes: true, visitType: { select: { name: true } } } },
+          },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        });
+        const day = (a: (typeof appointments)[number]) => a.scheduledAt ?? a.createdAt;
+        const rows = appointments
+          .sort((a, b) => (day(a) < day(b) ? -1 : day(a) > day(b) ? 1 : 0))
+          .map((a) => {
+            const values = [
+              a.pet.name,
+              a.owner.name,
+              a.scheduledAt ?? (spanish ? 'Sin hora' : 'No time'),
+              a.status,
+              a.vet?.name ?? '—',
+            ];
+            if (kind === 'clinic-activity')
+              values.push(a.plan?.visitType.name ?? '—', String(a.plan?.durationMinutes ?? 30));
+            return values;
+          });
+        const columns = spanish
+          ? ['Mascota', 'Dueño', 'Fecha (UTC)', 'Estado', 'Veterinario']
+          : ['Pet', 'Owner', 'Date (UTC)', 'Status', 'Veterinarian'];
         if (kind === 'clinic-activity')
-          values.push(String(row.visit_type_name ?? '—'), String(row.duration_minutes));
-        return values;
+          columns.push(...(spanish ? ['Tipo de visita', 'Minutos'] : ['Visit type', 'Minutes']));
+        return {
+          kind,
+          title:
+            kind === 'care-history'
+              ? spanish
+                ? 'Historial de cuidados'
+                : 'Care history'
+              : spanish
+                ? 'Actividad de la clínica'
+                : 'Clinic activity',
+          columns,
+          rows,
+          ...filters,
+        };
+      }
+      const movements = await tx.movement.findMany({
+        where: {
+          performedAt: range,
+          ...(filters.petId ? { appointment: { petId: filters.petId } } : {}),
+        },
+        include: {
+          product: { select: { name: true, unit: true } },
+          performer: { select: { name: true } },
+        },
+        orderBy: [{ performedAt: 'asc' }, { id: 'asc' }],
       });
-      const columns = spanish
-        ? ['Mascota', 'Dueño', 'Fecha (UTC)', 'Estado', 'Veterinario']
-        : ['Pet', 'Owner', 'Date (UTC)', 'Status', 'Veterinarian'];
-      if (kind === 'clinic-activity')
-        columns.push(...(spanish ? ['Tipo de visita', 'Minutos'] : ['Visit type', 'Minutes']));
       return {
         kind,
-        title:
-          kind === 'care-history'
-            ? spanish
-              ? 'Historial de cuidados'
-              : 'Care history'
-            : spanish
-              ? 'Actividad de la clínica'
-              : 'Clinic activity',
-        columns,
-        rows,
+        title: spanish ? 'Movimientos de inventario' : 'Inventory usage',
+        columns: spanish
+          ? ['Fecha (UTC)', 'Producto', 'Movimiento', 'Cantidad', 'Veterinario', 'Motivo / visita']
+          : ['Date (UTC)', 'Product', 'Movement', 'Quantity', 'Veterinarian', 'Reason / visit'],
+        rows: movements.map((m) => [
+          m.performedAt,
+          m.product.name,
+          m.type,
+          `${m.quantity} ${m.product.unit}`,
+          m.performer.name,
+          m.reason || m.appointmentId || '—',
+        ]),
         ...filters,
       };
-    }
-    const petId = filters.petId || '';
-    const rows = this.store
-      .query(
-        `
-        SELECT m.performed_at, m.type, m.quantity, m.reason, m.appointment_id,
-               p.name AS product_name, p.unit, u.name AS vet_name
-        FROM movements m
-        JOIN products p ON p.id = m.product_id
-        JOIN users u ON u.id = m.performed_by
-        LEFT JOIN appointments a ON a.id = m.appointment_id
-        WHERE substr(m.performed_at, 1, 10) BETWEEN ? AND ?
-          AND (? = '' OR a.pet_id = ?)
-        ORDER BY m.performed_at, m.rowid
-      `,
-        filters.from,
-        filters.to,
-        petId,
-        petId,
-      )
-      .map((row) => [
-        String(row.performed_at),
-        String(row.product_name),
-        String(row.type),
-        `${row.quantity} ${row.unit}`,
-        String(row.vet_name),
-        String(row.reason || row.appointment_id || '—'),
-      ]);
-    return {
-      kind,
-      title: spanish ? 'Movimientos de inventario' : 'Inventory usage',
-      columns: spanish
-        ? ['Fecha (UTC)', 'Producto', 'Movimiento', 'Cantidad', 'Veterinario', 'Motivo / visita']
-        : ['Date (UTC)', 'Product', 'Movement', 'Quantity', 'Veterinarian', 'Reason / visit'],
-      rows,
-      ...filters,
-    };
+    });
   }
 
   async pdf(report: ClinicReport): Promise<Buffer> {
@@ -187,7 +179,7 @@ export class ReportsService {
 
   async emailReport(user: User, kind: unknown, input: unknown) {
     if (!this.email.available) fail('Email delivery is not configured for this clinic.', 503);
-    const report = this.build(user, kind, input);
+    const report = await this.build(user, kind, input);
     const pdf = await this.pdf(report);
     await this.email.sendReport({
       to: user.email,

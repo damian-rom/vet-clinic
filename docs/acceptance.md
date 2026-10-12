@@ -22,7 +22,7 @@ The original overview and the local implementation plan are not part of the trac
 | Internationalization                            | English/Spanish catalogs and persisted switch; localized dates and common errors; Spanish browser journey                                       |
 | Errors and validation                           | Shared browser/server Zod schemas; JSON/origin/access checks; missing-page and error views                                                      |
 | Relational persistence                          | Typed columns for entity fields and related tables for nested plans/product lists; database constraints and atomic rollback tests               |
-| Existing database migration                     | Full-field migration and restart tests; retained login/session hashes, ordered checkpoints, AI drafts and stock history; invalid-data rollback  |
+| Prisma schema and migrations                    | Committed migrations match the Prisma schema; unmigrated databases are refused; data and sessions survive reopening                             |
 
 Run `npm test`, `npm run test:e2e`, `npm run lint`, `npm run format:check`, `npm run typecheck`, and `npm run build`. Browser tests use an isolated in-memory clinic on ports 3100/3101; they do not modify the real clinic database or send external messages. The deterministic AI adapter is only a test fixture. Provider transport checks do not require real credentials.
 
