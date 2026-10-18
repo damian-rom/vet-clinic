@@ -7,6 +7,7 @@ import { Empty, PageHeading } from '@/components/common';
 import { useVet } from '@/components/context';
 import { draftAppointments } from '@/modules/appointments/services';
 import { AppointmentTable } from '@/modules/appointments/list/appointment-table';
+import { LoadOlder } from '@/modules/appointments/list/load-older';
 export function AppointmentList() {
   const translate = useTranslations('clinic');
   const { data, busy, run } = useVet();
@@ -25,6 +26,8 @@ export function AppointmentList() {
           .includes(search.toLowerCase()),
     )
     .sort((a, b) => (a.scheduledAt || '').localeCompare(b.scheduledAt || ''));
+  // Closed visits read newest first; "Load older visits" extends them further back.
+  if (filter === 'Done' || filter === 'Cancelled') appointments.reverse();
   return (
     <>
       <PageHeading
@@ -95,6 +98,7 @@ export function AppointmentList() {
           text={translate('appointmentsWillAppearHereWhenOwnersBookOrCasesNeedANext')}
         />
       )}
+      {['Done', 'Cancelled', 'all'].includes(filter) && <LoadOlder />}
     </>
   );
 }

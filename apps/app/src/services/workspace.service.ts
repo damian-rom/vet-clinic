@@ -1,9 +1,28 @@
-import type { OwnerWorkspace, User, VetWorkspace } from '@vet-clinic/types';
+import { z } from 'zod';
+import type { AppointmentHistoryPage, OwnerWorkspace, User, VetWorkspace } from '@vet-clinic/types';
 import { clinicSettings } from '../time';
 import type { PlanningPort } from '../domain/ports/planning.port';
 
-import { active } from '../domain/rules';
+import { active, requireVet } from '../domain/rules';
 import type { Store } from '../infrastructure/prisma/repositories';
+
+/** Closed visits stay in the vet workspace this long; older ones load on request. */
+const HISTORY_DAYS = 30;
+/** Midnight UTC, HISTORY_DAYS ago: stable all day, so periodic refreshes agree on it. */
+const windowStart = (now: number) =>
+  new Date(Math.floor(now / 86400_000 - HISTORY_DAYS) * 86400_000).toISOString();
+
+const historyQuerySchema = z
+  .object({
+    before: z.string().datetime(),
+    petId: z.string().min(1).optional(),
+    cursor: z
+      .string()
+      .regex(/^[^|]+\|[^|]+$/)
+      .optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+  })
+  .strict();
 
 export class WorkspaceService {
   readonly settings;
@@ -29,31 +48,25 @@ export class WorkspaceService {
     }));
   }
   private vet(user: User): Promise<VetWorkspace> {
+    const historySince = windowStart(this.now());
     return this.store.read(async (repos) => {
-      const appointments = await repos.appointments.list();
+      const appointments = await repos.appointments.listRecent(historySince);
       const users = await repos.users.list();
       const products = await repos.products.list();
+      // Every open visit is in the window, so stock needs are complete.
       const upcoming = appointments.filter(
         (a) =>
           a.status === 'NeedsTime' ||
           (active(a) && a.scheduledAt && Date.parse(a.scheduledAt) >= this.now()),
       );
-      const completed = appointments.filter((a) => a.status === 'Done');
-      const reviewed = appointments.filter((a) => a.plan?.source === 'ai-reviewed');
-      const kept = reviewed.filter((a) => {
-        const p = a.plan!;
-        const d = p.originalDraft;
-        return (
-          d &&
-          d.visitTypeId === p.visitTypeId &&
-          Math.abs(p.durationMinutes - d.durationMinutes) <= 15 &&
-          JSON.stringify(p.estimatedActives) === JSON.stringify(d.estimatedActives)
-        );
-      });
+      const metrics = await repos.appointments.metrics();
+      const percent = (part: number, whole: number) =>
+        whole ? Math.round((100 * part) / whole) : 0;
       return {
         user,
         pets: await repos.pets.list(),
         appointments,
+        historySince,
         cases: await repos.cases.list(),
         vets: users.filter((u) => u.role === 'vet'),
         owners: users.filter((u) => u.role === 'owner'),
@@ -71,24 +84,19 @@ export class WorkspaceService {
         clinic: this.settings,
         aiAvailable: this.ai.available,
         metrics: {
-          completedVisits: completed.length,
-          plannedBeforeVisitPercent: completed.length
-            ? Math.round(
-                (100 *
-                  completed.filter(
-                    (a) =>
-                      a.plan &&
-                      a.scheduledAt &&
-                      Date.parse(a.plan.savedAt) < Date.parse(a.scheduledAt),
-                  ).length) /
-                  completed.length,
-              )
-            : 0,
-          aiKeptWithMinorEditsPercent: reviewed.length
-            ? Math.round((100 * kept.length) / reviewed.length)
-            : 0,
+          completedVisits: metrics.completed,
+          plannedBeforeVisitPercent: percent(metrics.plannedBefore, metrics.completed),
+          aiKeptWithMinorEditsPercent: percent(metrics.kept, metrics.reviewed),
         },
       };
     });
+  }
+  /** Closed visits older than the workspace window, a page at a time. */
+  async history(user: User, query: unknown): Promise<AppointmentHistoryPage> {
+    requireVet(user);
+    const { before, petId, cursor, limit } = historyQuerySchema.parse(query);
+    return this.store.read((repos) =>
+      repos.appointments.closedBefore(before, { petId, cursor, limit }),
+    );
   }
 }

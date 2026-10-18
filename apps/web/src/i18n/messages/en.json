@@ -450,6 +450,9 @@
     "Cat": "Cat",
     "Rabbit": "Rabbit",
     "Bird": "Bird",
-    "Other": "Other"
+    "Other": "Other",
+    "loadOlderVisits": "Load older visits",
+    "olderVisitsLoaded": "Older visits loaded",
+    "closedVisitsFromTheLast30DaysAreShown": "Closed visits from the last 30 days are shown."
   }
 }

@@ -17,6 +17,9 @@ import {
 } from '../records';
 import { BaseRepository } from './base.repository';
 
+/** Statuses whose visits still need work; the vet workspace always includes them. */
+const OPEN: AppointmentStatus[] = ['AwaitingConfirmation', 'Confirmed', 'NeedsTime'];
+
 /** Scalar fields an action may change. `update` bumps the revision itself. */
 export interface AppointmentChanges {
   status?: AppointmentStatus;
@@ -53,11 +56,87 @@ export class AppointmentsRepository extends BaseRepository<Appointment> {
       })
     ).map(toAppointment);
   }
-  /** Every appointment, oldest request first. */
-  async list(): Promise<Appointment[]> {
+  /**
+   * What a vet works with day to day, oldest request first: open visits, case checkpoints, and
+   * closed visits scheduled or requested on or after `since`. `closedBefore` pages the rest.
+   */
+  async listRecent(since: string): Promise<Appointment[]> {
     return (
-      await this.tx.appointment.findMany({ include: appointmentInclude, orderBy: appointmentOrder })
+      await this.tx.appointment.findMany({
+        where: {
+          OR: [
+            { status: { in: OPEN } },
+            { caseId: { not: null } },
+            { scheduledAt: { gte: since } },
+            { createdAt: { gte: since } },
+          ],
+        },
+        include: appointmentInclude,
+        orderBy: appointmentOrder,
+      })
     ).map(toAppointment);
+  }
+  /**
+   * Closed visits outside `listRecent(since)`, newest request first, `limit` at a time.
+   * `cursor` is the `next` value of the previous page.
+   */
+  async closedBefore(
+    since: string,
+    { petId, cursor, limit }: { petId?: string; cursor?: string; limit: number },
+  ): Promise<{ appointments: Appointment[]; next: string | null }> {
+    const [createdAt, id] = cursor ? cursor.split('|') : [];
+    const rows = await this.tx.appointment.findMany({
+      where: {
+        status: { in: ['Done', 'Cancelled'] },
+        caseId: null,
+        createdAt: { lt: since },
+        ...(petId ? { petId } : {}),
+        AND: [
+          { OR: [{ scheduledAt: null }, { scheduledAt: { lt: since } }] },
+          ...(cursor
+            ? [{ OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: id } }] }]
+            : []),
+        ],
+      },
+      include: appointmentInclude,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+    });
+    const page = rows.slice(0, limit);
+    const last = page.at(-1);
+    return {
+      appointments: page.map(toAppointment),
+      next: rows.length > limit && last ? `${last.createdAt}|${last.id}` : null,
+    };
+  }
+  /** Planning metrics over the whole history, counted in the database. */
+  async metrics() {
+    const [row] = await this.tx.$queryRaw<
+      { completed: number; plannedBefore: number; reviewed: number; kept: number }[]
+    >`
+      SELECT
+        (SELECT count(*) FROM appointments WHERE status = 'Done') AS completed,
+        (SELECT count(*) FROM appointments a
+           JOIN appointment_plans p ON p.appointment_id = a.id
+          WHERE a.status = 'Done' AND p.saved_at < a.scheduled_at) AS plannedBefore,
+        (SELECT count(*) FROM appointment_plans WHERE source = 'ai-reviewed') AS reviewed,
+        (SELECT count(*) FROM appointment_plans p
+           JOIN appointment_ai_drafts d ON d.appointment_id = p.appointment_id
+          WHERE p.source = 'ai-reviewed'
+            AND d.visit_type_id = p.visit_type_id
+            AND abs(p.duration_minutes - d.duration_minutes) <= 15
+            AND coalesce((SELECT group_concat(product_id || '=' || quantity, ',' ORDER BY position)
+                            FROM appointment_estimated_actives
+                           WHERE appointment_id = p.appointment_id), '')
+              = coalesce((SELECT group_concat(product_id || '=' || quantity, ',' ORDER BY position)
+                            FROM appointment_draft_actives
+                           WHERE appointment_id = p.appointment_id), '')) AS kept`;
+    return {
+      completed: Number(row.completed),
+      plannedBefore: Number(row.plannedBefore),
+      reviewed: Number(row.reviewed),
+      kept: Number(row.kept),
+    };
   }
   /** An owner's appointments without plans, product usage or revisions. */
   async listForOwner(ownerId: string): Promise<OwnerAppointment[]> {

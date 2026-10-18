@@ -17,16 +17,18 @@ function present<T extends object>(row: T) {
   return Object.fromEntries(Object.entries(row).filter(([, value]) => value !== null));
 }
 
-const byPosition = { orderBy: { position: 'asc' } } as const;
-
+/**
+ * Nested lists load unordered: Prisma cannot split an ordered relation load into batches, and
+ * SQLite rejects one query with a parameter per appointment past ~1000 rows. The mappers sort.
+ */
 export const appointmentInclude = {
   plan: {
     include: {
-      estimatedActives: byPosition,
-      originalDraft: { include: { estimatedActives: byPosition } },
+      estimatedActives: true,
+      originalDraft: { include: { estimatedActives: true } },
     },
   },
-  actualActives: byPosition,
+  actualActives: true,
 } satisfies Prisma.AppointmentInclude;
 
 /** Appointments in the order they were requested. */
@@ -36,7 +38,7 @@ export const appointmentOrder = [
 ] satisfies Prisma.AppointmentOrderByWithRelationInput[];
 
 export const caseInclude = {
-  checkpoints: { select: { id: true }, orderBy: { checkpointOrder: 'asc' } },
+  checkpoints: { select: { id: true, checkpointOrder: true } },
 } satisfies Prisma.CaseInclude;
 
 export const userSelect = { id: true, name: true, email: true, role: true } as const;
@@ -44,10 +46,12 @@ export const userSelect = { id: true, name: true, email: true, role: true } as c
 type AppointmentRow = Prisma.AppointmentGetPayload<{ include: typeof appointmentInclude }>;
 type PlanRow = NonNullable<AppointmentRow['plan']>;
 type CaseRow = Prisma.CaseGetPayload<{ include: typeof caseInclude }>;
-type ActiveRow = { productId: string; quantity: number };
+type ActiveRow = { productId: string; quantity: number; position: number };
 
 const toActives = (rows: ActiveRow[]): EstimatedActive[] =>
-  rows.map(({ productId, quantity }) => ({ productId, quantity }));
+  [...rows]
+    .sort((a, b) => a.position - b.position)
+    .map(({ productId, quantity }) => ({ productId, quantity }));
 
 function toPlan(row: PlanRow): VisitPlan {
   return {
@@ -89,7 +93,9 @@ export function toOwnerAppointment({
 
 export const toCase = ({ checkpoints, ...fields }: CaseRow): Case => ({
   ...fields,
-  checkpointIds: checkpoints.map((appointment) => appointment.id),
+  checkpointIds: [...checkpoints]
+    .sort((a, b) => a.checkpointOrder! - b.checkpointOrder!)
+    .map((appointment) => appointment.id),
 });
 export const toPet = (row: Prisma.PetGetPayload<object>) => present(row) as unknown as Pet;
 export const toMovement = (row: Prisma.MovementGetPayload<object>) =>

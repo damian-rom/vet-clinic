@@ -108,7 +108,10 @@ export interface OwnerWorkspace {
 export interface VetWorkspace {
   user: User;
   pets: Pet[];
+  /** Open visits, case checkpoints, and visits closed on or after `historySince`. */
   appointments: Appointment[];
+  /** Older closed visits are paged in through `appointments/history?before=historySince`. */
+  historySince: string;
   cases: Case[];
   vets: User[];
   owners: User[];
@@ -123,4 +126,10 @@ export interface VetWorkspace {
     aiKeptWithMinorEditsPercent: number;
     completedVisits: number;
   };
+}
+/** One page of closed visits older than the vet workspace window, newest first. */
+export interface AppointmentHistoryPage {
+  appointments: Appointment[];
+  /** Pass back as `cursor` for the next page; null when there is nothing older. */
+  next: string | null;
 }
