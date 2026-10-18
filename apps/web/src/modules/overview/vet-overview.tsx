@@ -17,7 +17,12 @@ export function VetHome() {
   const { data } = useVet();
   const waiting = data.appointments.filter((a) => a.status === 'AwaitingConfirmation');
   const mine = data.appointments
-    .filter((a) => a.vetId === data.user.id && a.status === 'Confirmed')
+    .filter(
+      (a) =>
+        a.vetId === data.user.id &&
+        a.status === 'Confirmed' &&
+        Date.parse(a.scheduledAt!) > Date.now(),
+    )
     .sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!));
   const unplanned = data.appointments.filter(
     (a) =>
