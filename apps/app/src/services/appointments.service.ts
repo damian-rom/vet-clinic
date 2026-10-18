@@ -5,12 +5,10 @@ import {
   rescheduleSchema,
   savePlanSchema,
   completeVisitSchema,
-  MAX_VISIT_MINUTES,
 } from '@vet-clinic/validation';
 import { HttpException } from '@nestjs/common';
 import { z } from 'zod';
-import type { Database, Tx } from '@vet-clinic/db';
-import type { Appointment, User } from '@vet-clinic/types';
+import type { Appointment, User, VisitPlan } from '@vet-clinic/types';
 import { bookAppointmentSchema } from '@vet-clinic/validation';
 import { clinicSettings, clinicInstant, endOf, localParts, overlaps } from '../time';
 import {
@@ -20,16 +18,10 @@ import {
   duration,
   requireVet,
   requireOwner,
-  required,
   isoNow,
   validatePlan,
 } from '../domain/rules';
-import {
-  appointmentInclude,
-  createAppointment,
-  saveAppointment,
-  toAppointment,
-} from '../infrastructure/prisma/records';
+import type { Repositories, Store } from '../infrastructure/prisma/repositories';
 import { InventoryService } from './inventory.service';
 
 interface Interval {
@@ -46,7 +38,7 @@ interface Schedule {
 export class AppointmentsService {
   readonly settings;
   constructor(
-    private readonly db: Database,
+    private readonly store: Store,
     private readonly inventory: InventoryService,
     private readonly now: () => number,
     timezone: string,
@@ -69,38 +61,20 @@ export class AppointmentsService {
       fail('Choose a slot within clinic opening hours');
   }
   /** Loads blocks and active visits that could overlap [from, to). */
-  private async schedule(tx: Tx, from: number, to: number): Promise<Schedule> {
-    const capacity = await tx.user.count({ where: { role: 'vet' } });
-    const blocks = await tx.timeBlock.findMany({
-      where: {
-        startsAt: { lt: new Date(to).toISOString() },
-        endsAt: { gt: new Date(from).toISOString() },
-      },
-    });
-    const visits = await tx.appointment.findMany({
-      where: {
-        status: { in: ['Confirmed', 'AwaitingConfirmation'] },
-        // Stored instants share one ISO format, so text comparison follows time order.
-        scheduledAt: {
-          gte: new Date(from - MAX_VISIT_MINUTES * 60_000).toISOString(),
-          lt: new Date(to).toISOString(),
-        },
-      },
-      select: {
-        id: true,
-        vetId: true,
-        scheduledAt: true,
-        plan: { select: { durationMinutes: true } },
-      },
-    });
+  private async schedule(repos: Repositories, from: number, to: number): Promise<Schedule> {
+    const blocks = await repos.timeBlocks.overlapping(from, to);
+    const visits = await repos.appointments.scheduledNear(from, to, [
+      'Confirmed',
+      'AwaitingConfirmation',
+    ]);
     return {
-      capacity,
+      capacity: await repos.users.countVets(),
       blocks: blocks.map((b) => ({ start: Date.parse(b.startsAt), end: Date.parse(b.endsAt) })),
       visits: visits.map((a) => ({
         id: a.id,
         vetId: a.vetId,
-        start: Date.parse(a.scheduledAt!),
-        end: endOf(a.scheduledAt!, a.plan?.durationMinutes || 30),
+        start: Date.parse(a.scheduledAt),
+        end: endOf(a.scheduledAt, a.durationMinutes),
       })),
     };
   }
@@ -120,7 +94,7 @@ export class AppointmentsService {
       (a) => a.id !== candidate.id && overlaps(start, end, a.start, a.end),
     );
     if (candidate.vetId) {
-      if (required(vet).role !== 'vet') fail('Choose a veterinarian', 400);
+      if (!vet || vet.role !== 'vet') fail('Choose a veterinarian', 400);
       if (relevant.some((a) => a.vetId === candidate.vetId))
         fail('This veterinarian already has an overlapping appointment');
     }
@@ -132,14 +106,13 @@ export class AppointmentsService {
     )
       fail('This slot is full. Please choose another time');
   }
-  async reserve(tx: Tx, candidate: Appointment, future = true) {
+  /** Fails unless `candidate` fits the clinic's hours, blocks, capacity and its vet's calendar. */
+  async reserve(repos: Repositories, candidate: Appointment, future = true) {
     if (!candidate.scheduledAt) fail('This appointment needs a time');
-    const vet = candidate.vetId
-      ? await tx.user.findUnique({ where: { id: candidate.vetId }, select: { role: true } })
-      : undefined;
+    const vet = candidate.vetId ? await repos.users.get(candidate.vetId) : undefined;
     const start = Date.parse(candidate.scheduledAt!);
     const end = endOf(candidate.scheduledAt!, duration(candidate));
-    this.check(await this.schedule(tx, start, end), candidate, future, vet);
+    this.check(await this.schedule(repos, start, end), candidate, future, vet);
   }
   async slots(user: User, date: string, appointmentId?: string) {
     const validDate = z
@@ -151,17 +124,10 @@ export class AppointmentsService {
       new Date(validDate).toISOString().slice(0, 10) !== validDate
     )
       fail('Invalid date', 400);
-    return this.db.read(async (tx) => {
+    return this.store.read(async (repos) => {
       let appointment: Appointment | undefined;
       if (appointmentId) {
-        appointment = toAppointment(
-          required(
-            await tx.appointment.findUnique({
-              where: { id: appointmentId },
-              include: appointmentInclude,
-            }),
-          ),
-        );
+        appointment = await repos.appointments.get(appointmentId);
         if (user.role === 'owner' && appointment.ownerId !== user.id) fail('Record not found', 404);
         if (appointment.status !== 'NeedsTime')
           fail('This appointment is not waiting for a new time');
@@ -177,7 +143,7 @@ export class AppointmentsService {
         );
       const minutes = appointment?.plan?.durationMinutes || 30;
       const schedule = await this.schedule(
-        tx,
+        repos,
         Date.parse(candidates[0]),
         endOf(candidates.at(-1)!, minutes),
       );
@@ -200,8 +166,8 @@ export class AppointmentsService {
   async book(user: User, input: unknown) {
     requireOwner(user);
     const data = bookAppointmentSchema.parse(input);
-    return this.db.write(async (tx) => {
-      const pet = required(await tx.pet.findUnique({ where: { id: data.petId } }));
+    return this.store.write(async (repos) => {
+      const pet = await repos.pets.get(data.petId);
       if (pet.ownerId !== user.id) fail('Record not found', 404);
       const appointment: Appointment = {
         ...data,
@@ -211,121 +177,126 @@ export class AppointmentsService {
         createdAt: isoNow(this.now),
         revision: 0,
       };
-      await this.reserve(tx, appointment);
-      await createAppointment(tx, appointment);
+      await this.reserve(repos, appointment);
+      await repos.appointments.create(appointment);
       return { id: appointment.id };
     });
   }
+
+  /** Runs one action on an appointment as a single transaction. */
   async appointment(user: User, appointmentId: string, action: string, input: unknown) {
-    return this.db.write(async (tx) => {
-      const a = toAppointment(
-        required(
-          await tx.appointment.findUnique({
-            where: { id: appointmentId },
-            include: appointmentInclude,
-          }),
-        ),
-      );
-      const before = structuredClone(a);
+    return this.store.write(async (repos) => {
+      const a = await repos.appointments.get(appointmentId);
       if (user.role === 'owner' && a.ownerId !== user.id) fail('Record not found', 404);
-      if (action === 'cancel') {
+      if (action === 'cancel' || action === 'pick-time') {
         requireOwner(user);
-        emptyRequestSchema.parse(input);
-        if (a.caseId) fail('Case checkpoints are managed by the clinic');
-        if (
-          a.status === 'Done' ||
-          a.status === 'Cancelled' ||
-          (a.scheduledAt && Date.parse(a.scheduledAt) <= this.now())
-        )
-          fail('This appointment can no longer be cancelled');
-        a.status = 'Cancelled';
-      } else if (action === 'pick-time') {
-        requireOwner(user);
-        const data = pickTimeSchema.parse(input);
-        if (a.status !== 'NeedsTime') fail('This appointment is not waiting for a new time');
-        const candidate = {
-          ...a,
-          scheduledAt: data.scheduledAt,
-          vetId: undefined,
-          status: 'AwaitingConfirmation' as const,
-        };
-        await this.reserve(tx, candidate);
-        Object.assign(a, candidate);
-      } else {
-        requireVet(user);
-        if (a.status === 'Done' || a.status === 'Cancelled')
-          fail('Completed and cancelled appointments are read-only');
-        if (action === 'assign') {
-          const data = assignVetSchema.parse(input);
-          if (a.status !== 'AwaitingConfirmation' && a.status !== 'Confirmed')
-            fail('The owner must choose a time first');
-          const candidate = { ...a, vetId: data.vetId, status: 'Confirmed' as const };
-          await this.reserve(tx, candidate);
-          Object.assign(a, candidate);
-        } else if (action === 'reschedule') {
-          const data = rescheduleSchema.parse(input);
-          if (a.status !== 'Confirmed') fail('Only confirmed appointments can be moved');
-          this.checkRevision(a, data.revision);
-          const candidate = { ...a, scheduledAt: data.scheduledAt };
-          await this.reserve(tx, candidate);
-          Object.assign(a, candidate);
-        } else if (action === 'request-time') {
-          emptyRequestSchema.parse(input);
-          if (a.caseId && a.petNeeded === false)
-            fail('Checkpoints without the pet must be scheduled by a veterinarian');
-          a.status = 'NeedsTime';
-          delete a.scheduledAt;
-          delete a.vetId;
-        } else if (action === 'plan') {
-          const data = savePlanSchema.parse(input);
-          this.checkRevision(a, data.revision);
-          const { revision: _revision, ...plan } = data;
-          await validatePlan(tx, plan, a.plan?.visitTypeId);
-          const ai = a.plan?.source === 'ai-draft' || a.plan?.source === 'ai-reviewed';
-          const candidate: Appointment = {
-            ...a,
-            plan: {
-              ...plan,
-              source: ai ? 'ai-reviewed' : 'human',
-              reviewedBy: user.id,
-              savedAt: isoNow(this.now),
-              ...(ai ? { originalDraft: a.plan!.originalDraft } : {}),
-            },
-          };
-          if (active(candidate) && candidate.scheduledAt) await this.reserve(tx, candidate, false);
-          Object.assign(a, candidate);
-        } else if (action === 'complete') {
-          const data = completeVisitSchema.parse(input);
-          this.checkRevision(a, data.revision);
-          if (a.status !== 'Confirmed') fail('Only confirmed appointments can be completed');
-          if (!a.scheduledAt || Date.parse(a.scheduledAt) > this.now())
-            fail('A visit cannot be completed before its start time');
-          if (!a.plan || a.plan.source === 'ai-draft')
-            fail('Save and review the visit plan before completing the visit');
-          for (const used of data.actualActives) {
-            const product = required(
-              await tx.product.findUnique({ where: { id: used.productId } }),
-            );
-            if (product.stock < used.quantity)
-              fail(`Insufficient stock for ${product.name}. Correct the inventory first.`);
-          }
-          for (const used of data.actualActives)
-            await this.inventory.recordMovement(tx, user, {
-              ...used,
-              quantity: -used.quantity,
-              type: 'Used',
-              appointmentId: a.id,
-            });
-          a.actualActives = data.actualActives;
-          a.status = 'Done';
-          a.completedAt = isoNow(this.now);
-        } else fail('Unknown appointment action', 404);
+        if (action === 'cancel') await this.cancel(repos, a, input);
+        else await this.pickTime(repos, a, input);
+        return { id: a.id };
       }
-      a.revision++;
-      await saveAppointment(tx, before, a);
+      requireVet(user);
+      if (a.status === 'Done' || a.status === 'Cancelled')
+        fail('Completed and cancelled appointments are read-only');
+      if (action === 'assign') await this.assign(repos, a, input);
+      else if (action === 'reschedule') await this.reschedule(repos, a, input);
+      else if (action === 'request-time') await this.requestTime(repos, a, input);
+      else if (action === 'plan') await this.savePlan(repos, user, a, input);
+      else if (action === 'complete') await this.complete(repos, user, a, input);
+      else fail('Unknown appointment action', 404);
       return { id: a.id };
     });
   }
+
+  private async cancel(repos: Repositories, a: Appointment, input: unknown) {
+    emptyRequestSchema.parse(input);
+    if (a.caseId) fail('Case checkpoints are managed by the clinic');
+    if (
+      a.status === 'Done' ||
+      a.status === 'Cancelled' ||
+      (a.scheduledAt && Date.parse(a.scheduledAt) <= this.now())
+    )
+      fail('This appointment can no longer be cancelled');
+    await repos.appointments.update(a, { status: 'Cancelled' });
+  }
+
+  /** The owner chooses a new time; a vet confirms it again. */
+  private async pickTime(repos: Repositories, a: Appointment, input: unknown) {
+    const { scheduledAt } = pickTimeSchema.parse(input);
+    if (a.status !== 'NeedsTime') fail('This appointment is not waiting for a new time');
+    const status = 'AwaitingConfirmation';
+    await this.reserve(repos, { ...a, scheduledAt, vetId: undefined, status });
+    await repos.appointments.update(a, { scheduledAt, vetId: null, status });
+  }
+
+  private async assign(repos: Repositories, a: Appointment, input: unknown) {
+    const { vetId } = assignVetSchema.parse(input);
+    if (a.status !== 'AwaitingConfirmation' && a.status !== 'Confirmed')
+      fail('The owner must choose a time first');
+    await this.reserve(repos, { ...a, vetId, status: 'Confirmed' });
+    await repos.appointments.update(a, { vetId, status: 'Confirmed' });
+  }
+
+  private async reschedule(repos: Repositories, a: Appointment, input: unknown) {
+    const { scheduledAt, revision } = rescheduleSchema.parse(input);
+    if (a.status !== 'Confirmed') fail('Only confirmed appointments can be moved');
+    this.checkRevision(a, revision);
+    await this.reserve(repos, { ...a, scheduledAt });
+    await repos.appointments.update(a, { scheduledAt });
+  }
+
+  /** Releases the slot and asks the owner to choose another time. */
+  private async requestTime(repos: Repositories, a: Appointment, input: unknown) {
+    emptyRequestSchema.parse(input);
+    if (a.caseId && a.petNeeded === false)
+      fail('Checkpoints without the pet must be scheduled by a veterinarian');
+    await repos.appointments.update(a, { status: 'NeedsTime', scheduledAt: null, vetId: null });
+  }
+
+  /** Saving over an AI draft keeps the draft and marks the plan as reviewed. */
+  private async savePlan(repos: Repositories, user: User, a: Appointment, input: unknown) {
+    const { revision, ...fields } = savePlanSchema.parse(input);
+    this.checkRevision(a, revision);
+    await validatePlan(repos, fields, a.plan?.visitTypeId);
+    const ai = a.plan?.source === 'ai-draft' || a.plan?.source === 'ai-reviewed';
+    const plan: VisitPlan = {
+      ...fields,
+      source: ai ? 'ai-reviewed' : 'human',
+      reviewedBy: user.id,
+      savedAt: isoNow(this.now),
+      ...(ai ? { originalDraft: a.plan!.originalDraft } : {}),
+    };
+    // A longer visit must still fit around the vet's other appointments.
+    if (active(a) && a.scheduledAt) await this.reserve(repos, { ...a, plan }, false);
+    await repos.appointments.replacePlan(a.id, plan);
+    await repos.appointments.update(a);
+  }
+
+  /** Closes a visit and takes what it used out of stock. */
+  private async complete(repos: Repositories, user: User, a: Appointment, input: unknown) {
+    const { actualActives, revision } = completeVisitSchema.parse(input);
+    this.checkRevision(a, revision);
+    if (a.status !== 'Confirmed') fail('Only confirmed appointments can be completed');
+    if (!a.scheduledAt || Date.parse(a.scheduledAt) > this.now())
+      fail('A visit cannot be completed before its start time');
+    if (!a.plan || a.plan.source === 'ai-draft')
+      fail('Save and review the visit plan before completing the visit');
+    for (const used of actualActives) {
+      const product = await repos.products.get(used.productId);
+      if (product.stock < used.quantity)
+        fail(`Insufficient stock for ${product.name}. Correct the inventory first.`);
+    }
+    for (const used of actualActives)
+      await this.inventory.recordMovement(repos, user, {
+        ...used,
+        quantity: -used.quantity,
+        type: 'Used',
+        appointmentId: a.id,
+      });
+    await repos.appointments.recordUsage(a.id, actualActives);
+    await repos.appointments.update(a, { status: 'Done', completedAt: isoNow(this.now) });
+  }
+
+  /** Rejects a request made against an older version of the appointment. */
   private checkRevision(a: Appointment, revision: number) {
     if (a.revision !== revision) fail('This appointment changed. Refresh and try again');
   }

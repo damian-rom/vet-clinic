@@ -1,5 +1,4 @@
-import { isDeepStrictEqual } from 'node:util';
-import type { Prisma, Tx } from '@vet-clinic/db';
+import type { Prisma } from '@vet-clinic/db';
 import type {
   Appointment,
   Case,
@@ -99,7 +98,7 @@ export const toTimeBlock = (row: Prisma.TimeBlockGetPayload<object>) =>
   present(row) as unknown as TimeBlock;
 export const toUser = ({ id, name, email, role }: User): User => ({ id, name, email, role });
 
-/** Scalar appointment columns; nested plans and usage are written separately. */
+/** Scalar appointment columns; repositories write nested plans and usage separately. */
 export function appointmentColumns(appointment: Appointment) {
   return {
     id: appointment.id,
@@ -119,61 +118,6 @@ export function appointmentColumns(appointment: Appointment) {
   };
 }
 
-const positioned = (actives: EstimatedActive[]) =>
+/** Product lists keep their order through an explicit position column. */
+export const positioned = (actives: EstimatedActive[]) =>
   actives.map(({ productId, quantity }, position) => ({ position, productId, quantity }));
-
-/** Replacing a plan cascades only to its estimates and original draft rows. */
-async function writePlan(tx: Tx, appointmentId: string, plan?: VisitPlan) {
-  await tx.appointmentPlan.deleteMany({ where: { appointmentId } });
-  if (!plan) return;
-  const draft = plan.originalDraft;
-  await tx.appointmentPlan.create({
-    data: {
-      appointmentId,
-      visitTypeId: plan.visitTypeId,
-      durationMinutes: plan.durationMinutes,
-      source: plan.source,
-      reviewedBy: plan.reviewedBy ?? null,
-      savedAt: plan.savedAt,
-      estimatedActives: { create: positioned(plan.estimatedActives) },
-      ...(draft
-        ? {
-            originalDraft: {
-              create: {
-                visitTypeId: draft.visitTypeId,
-                durationMinutes: draft.durationMinutes,
-                estimatedActives: { create: positioned(draft.estimatedActives) },
-              },
-            },
-          }
-        : {}),
-    },
-  });
-}
-
-export async function createAppointment(tx: Tx, appointment: Appointment) {
-  await tx.appointment.create({ data: appointmentColumns(appointment) });
-  if (appointment.plan) await writePlan(tx, appointment.id, appointment.plan);
-  if (appointment.actualActives?.length)
-    await tx.appointmentActualActive.createMany({
-      data: positioned(appointment.actualActives).map((row) => ({
-        ...row,
-        appointmentId: appointment.id,
-      })),
-    });
-}
-
-/** Writes only the parts of an appointment that changed. */
-export async function saveAppointment(tx: Tx, before: Appointment, after: Appointment) {
-  await tx.appointment.update({ where: { id: after.id }, data: appointmentColumns(after) });
-  if (!isDeepStrictEqual(before.plan, after.plan)) await writePlan(tx, after.id, after.plan);
-  if (!isDeepStrictEqual(before.actualActives, after.actualActives)) {
-    await tx.appointmentActualActive.deleteMany({ where: { appointmentId: after.id } });
-    await tx.appointmentActualActive.createMany({
-      data: positioned(after.actualActives || []).map((row) => ({
-        ...row,
-        appointmentId: after.id,
-      })),
-    });
-  }
-}

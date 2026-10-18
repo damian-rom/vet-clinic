@@ -1,30 +1,28 @@
-import type { Database, Tx } from '@vet-clinic/db';
 import type { User } from '@vet-clinic/types';
 import { productSchema, stockMovementSchema } from '@vet-clinic/validation';
-import { fail, id, requireVet, required, isoNow } from '../domain/rules';
-import { toMovement } from '../infrastructure/prisma/records';
+import { fail, requireVet, isoNow } from '../domain/rules';
+import type { Repositories, Store } from '../infrastructure/prisma/repositories';
 export class InventoryService {
   constructor(
-    private readonly db: Database,
+    private readonly store: Store,
     private readonly now: () => number,
   ) {}
   async createProduct(user: User, input: unknown) {
     requireVet(user);
     const data = productSchema.parse(input);
-    return this.db.write(async (tx) => {
-      const names = await tx.product.findMany({ select: { name: true } });
-      if (names.some((p) => p.name.toLowerCase() === data.name.toLowerCase()))
+    return this.store.write(async (repos) => {
+      if (await repos.products.nameTaken(data.name))
         fail('A product with this name already exists');
-      return tx.product.create({ data: { ...data, id: id(), stock: 0 } });
+      return repos.products.create(data);
     });
   }
   async movement(user: User, input: unknown) {
     requireVet(user);
     const data = stockMovementSchema.parse(input);
-    return this.db.write((tx) => this.recordMovement(tx, user, data));
+    return this.store.write((repos) => this.recordMovement(repos, user, data));
   }
   async recordMovement(
-    tx: Tx,
+    repos: Repositories,
     user: User,
     data: {
       productId: string;
@@ -34,13 +32,14 @@ export class InventoryService {
       appointmentId?: string;
     },
   ) {
-    const product = required(await tx.product.findUnique({ where: { id: data.productId } }));
+    const product = await repos.products.get(data.productId);
     const stock = Math.round((product.stock + data.quantity) * 1e8) / 1e8;
     if (stock < 0) fail('Stock cannot become negative');
-    await tx.product.update({ where: { id: product.id }, data: { stock } });
-    const movement = await tx.movement.create({
-      data: { ...data, id: id(), performedBy: user.id, performedAt: isoNow(this.now) },
+    await repos.products.setStock(product.id, stock);
+    return repos.movements.create({
+      ...data,
+      performedBy: user.id,
+      performedAt: isoNow(this.now),
     });
-    return toMovement(movement);
   }
 }

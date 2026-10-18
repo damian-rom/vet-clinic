@@ -1,7 +1,7 @@
 import { HttpException } from '@nestjs/common';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
-import type { Tx } from '@vet-clinic/db';
 import type { Appointment, PlanInput, User } from '@vet-clinic/types';
+import type { Repositories } from '../infrastructure/prisma/repositories';
 
 export const fail = (message: string, status = 409): never => {
   throw new HttpException(message, status);
@@ -30,10 +30,9 @@ export function passwordMatches(password: string, stored: string) {
 }
 export const sameSecret = (a: string, b: string) =>
   timingSafeEqual(Buffer.from(hashToken(a), 'hex'), Buffer.from(hashToken(b), 'hex'));
-export async function validatePlan(tx: Tx, plan: PlanInput, previousType?: string) {
-  const type = required(await tx.visitType.findUnique({ where: { id: plan.visitTypeId } }));
+export async function validatePlan(repos: Repositories, plan: PlanInput, previousType?: string) {
+  const type = await repos.visitTypes.get(plan.visitTypeId);
   if (type.retired && type.id !== previousType) fail('Choose an active visit type');
-  const productIds = plan.estimatedActives.map((item) => item.productId);
-  if ((await tx.product.count({ where: { id: { in: productIds } } })) !== productIds.length)
+  if (!(await repos.products.allExist(plan.estimatedActives.map((item) => item.productId))))
     fail('Record not found', 404);
 }
