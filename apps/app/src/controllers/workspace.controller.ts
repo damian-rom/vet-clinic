@@ -17,6 +17,11 @@ export class WorkspaceController {
     return this.clinic.views.workspace(user);
   }
   @UseGuards(SessionGuard)
+  @Get('appointments/history')
+  history(@Actor() user: User, @Query() query: unknown) {
+    return this.clinic.views.history(user, query);
+  }
+  @UseGuards(SessionGuard)
   @Get('slots')
   slots(
     @Actor() user: User,

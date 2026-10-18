@@ -6,6 +6,7 @@ import { dateLabel } from '@/lib/time';
 import { Button } from '@/components/button';
 import { Field, formValues } from '@/components/common';
 import { useVet } from '@/components/context';
+import { LoadOlder } from '@/modules/appointments/list/load-older';
 export function AttachForm({ careCase }: { careCase: Case }) {
   const translate = useTranslations('clinic');
   const { data, busy, run } = useVet();
@@ -32,6 +33,7 @@ export function AttachForm({ careCase }: { careCase: Case }) {
           ))}
         </select>
       </Field>
+      <LoadOlder petId={careCase.petId} />
       <Button type="submit" disabled={busy || !candidates.length}>
         {translate('linkVisit')}
       </Button>

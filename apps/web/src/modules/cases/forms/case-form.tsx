@@ -6,6 +6,7 @@ import { dateLabel } from '@/lib/time';
 import { Button } from '@/components/button';
 import { Field, formValues } from '@/components/common';
 import { useVet } from '@/components/context';
+import { LoadOlder } from '@/modules/appointments/list/load-older';
 export function CaseForm() {
   const translate = useTranslations('clinic');
   const { data, run, busy } = useVet();
@@ -45,6 +46,7 @@ export function CaseForm() {
               {a.symptoms} · {dateLabel(a.scheduledAt, data.clinic.timezone)}
             </label>
           ))}
+        {petId && <LoadOlder petId={petId} />}
       </fieldset>
       <Button type="submit" disabled={busy || !petId}>
         {translate('createCase')}

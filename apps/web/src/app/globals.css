@@ -849,6 +849,14 @@ small {
   color: var(--foreground);
   box-shadow: 0 1px 3px #263d2112;
 }
+.load-older {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
 .toolbar {
   display: flex;
   justify-content: space-between;

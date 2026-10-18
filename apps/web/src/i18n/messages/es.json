@@ -450,6 +450,9 @@
     "Cat": "Gato",
     "Rabbit": "Conejo",
     "Bird": "Ave",
-    "Other": "Otra"
+    "Other": "Otra",
+    "loadOlderVisits": "Cargar visitas anteriores",
+    "olderVisitsLoaded": "Visitas anteriores cargadas",
+    "closedVisitsFromTheLast30DaysAreShown": "Se muestran las visitas cerradas de los últimos 30 días."
   }
 }

@@ -14,7 +14,12 @@ import {
   RefreshCw,
   FileText,
 } from 'lucide-react';
-import type { OwnerWorkspace, VetWorkspace } from '@vet-clinic/types';
+import type {
+  Appointment,
+  AppointmentHistoryPage,
+  OwnerWorkspace,
+  VetWorkspace,
+} from '@vet-clinic/types';
 import { api, ApiError } from '@/lib/api';
 import { Button } from './button';
 import { Modal } from './modal';
@@ -47,6 +52,15 @@ export function ClinicApp() {
     description: string;
     content: ReactNode;
   } | null>(null);
+  // Older visits paged in on request, and each list's next cursor (null once exhausted).
+  const [older, setOlder] = useState<Appointment[]>([]);
+  const [cursors, setCursors] = useState<Record<string, string | null>>({});
+  const signedOut = () => {
+    setData(null);
+    setOlder([]);
+    setCursors({});
+    setModal(null);
+  };
   const refresh = useCallback(async () => {
     const result = await api<OwnerWorkspace | VetWorkspace>('workspace');
     setData(result);
@@ -90,10 +104,8 @@ export function ClinicApp() {
       return true;
     } catch (error) {
       setNotice({ text: error instanceof Error ? error.message : 'Unable to save', error: true });
-      if (error instanceof ApiError && error.status === 401) {
-        setData(null);
-        setModal(null);
-      } else await refresh().catch(() => {});
+      if (error instanceof ApiError && error.status === 401) signedOut();
+      else await refresh().catch(() => {});
       return false;
     } finally {
       setBusy(false);
@@ -116,6 +128,29 @@ export function ClinicApp() {
     );
   if (!data) return <AuthForm onLogin={refresh} />;
   const vet = data.user.role === 'vet';
+  const loadOlder = async (petId?: string) => {
+    if (!('historySince' in data)) return;
+    const key = petId ?? '';
+    if (cursors[key] === null) return;
+    const query = new URLSearchParams({ before: data.historySince });
+    if (petId) query.set('petId', petId);
+    if (cursors[key]) query.set('cursor', cursors[key]);
+    const page = await api<AppointmentHistoryPage>(`appointments/history?${query}`);
+    setOlder((current) => {
+      const known = new Set(current.map((a) => a.id));
+      return [...current, ...page.appointments.filter((a) => !known.has(a.id))];
+    });
+    setCursors((current) => ({ ...current, [key]: page.next }));
+  };
+  // The workspace's own copy wins: a closed visit can still join a case.
+  const inWorkspace = new Set(data.appointments.map((a) => a.id));
+  const view =
+    'historySince' in data && older.length
+      ? {
+          ...data,
+          appointments: [...data.appointments, ...older.filter((a) => !inWorkspace.has(a.id))],
+        }
+      : data;
   const navigation = vet
     ? [
         { id: 'overview', label: translate('overview'), icon: LayoutDashboard },
@@ -161,7 +196,7 @@ export function ClinicApp() {
   return (
     <Context.Provider
       value={{
-        data,
+        data: view,
         busy,
         open: (title, description, content) => {
           setNotice(null);
@@ -169,6 +204,10 @@ export function ClinicApp() {
         },
         close: () => setModal(null),
         run,
+        history: {
+          load: loadOlder,
+          more: (petId) => cursors[''] !== null && (!petId || cursors[petId] !== null),
+        },
       }}
     >
       <div className="app-shell">
@@ -215,8 +254,7 @@ export function ClinicApp() {
                   setBusy(true);
                   try {
                     await api('auth/logout', {});
-                    setData(null);
-                    setModal(null);
+                    signedOut();
                     setNotice(null);
                     window.location.hash = '';
                   } catch (e) {

@@ -7,6 +7,13 @@ export interface ClinicContext {
   open: (title: string, description: string, content: ReactNode) => void;
   close: () => void;
   run: (task: () => Promise<unknown>, message: string, close?: boolean) => Promise<boolean>;
+  /** Vets: closed visits older than the workspace window, merged into `data` once loaded. */
+  history: {
+    /** Loads the next page, for every pet or just `petId`. */
+    load: (petId?: string) => Promise<void>;
+    /** Whether older visits may remain, for every pet or just `petId`. */
+    more: (petId?: string) => boolean;
+  };
 }
 export const Context = createContext<ClinicContext | null>(null);
 export function useClinic() {
