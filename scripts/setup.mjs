@@ -17,4 +17,4 @@ if (!existsSync(webEnv))
   writeFileSync(webEnv, readFileSync(resolve('apps/web/.env.example'), 'utf8'), { flag: 'wx' });
 console.log('Read CLINIC_ACCESS_CODE in apps/app/.env to register your first veterinarian.');
 console.log('Configure AI and SMTP in that file when connecting external providers.');
-console.log('Run npm run dev, then open http://localhost:3000.');
+console.log('Run pnpm dev, then open http://localhost:3000.');

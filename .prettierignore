@@ -4,7 +4,7 @@ node_modules/
 .turbo/
 dist/
 data/
-package-lock.json
+pnpm-lock.yaml
 04-project-overview-vet-clinic.md
 docs/implementation-plan.md
 test-results/

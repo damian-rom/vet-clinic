@@ -47,7 +47,7 @@ export class Database {
   }
 }
 
-/** Opens a migrated database; run `npm run db:migrate` before starting the API. */
+/** Opens a migrated database; run `pnpm db:migrate` before starting the API. */
 export async function openDatabase(path: string): Promise<Database> {
   const db = new Database(path);
   try {
@@ -63,7 +63,7 @@ export async function openDatabase(path: string): Promise<Database> {
       .catch(() => []);
     const names = new Set(applied.map((row) => row.migration_name));
     if (expected.some((name) => !names.has(name)))
-      throw new Error('The database schema is not up to date. Run npm run db:migrate first.');
+      throw new Error('The database schema is not up to date. Run pnpm db:migrate first.');
     await db.write(async (tx) => {
       if (await tx.visitType.count()) return;
       await tx.visitType.createMany({

@@ -1,6 +1,6 @@
 # Whole clinic: migrations run first, the API starts once they succeed, and the web app
 # starts once the API reports healthy. Only the web app is published, on WEB_PORT (3000).
-#   npm run setup            # creates apps/app/.env with CLINIC_ACCESS_CODE
+#   pnpm run setup            # creates apps/app/.env with CLINIC_ACCESS_CODE
 #   docker compose up --build
 name: vet-clinic
 
