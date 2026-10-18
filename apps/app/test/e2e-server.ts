@@ -1,5 +1,5 @@
 import { createServer } from '../src/server';
-import { createAppointment } from '../src/infrastructure/prisma/records';
+import { Store } from '../src/infrastructure/prisma/repositories';
 import { fixture } from './helpers';
 
 async function main() {
@@ -15,8 +15,8 @@ async function main() {
     quantity: 10,
   });
   // An isolated in-memory past visit exercises completion through the UI.
-  await f.db.write((tx) =>
-    createAppointment(tx, {
+  await new Store(f.db).write((repos) =>
+    repos.appointments.create({
       id: 'ready-to-complete',
       ownerId: f.owner.id,
       petId: f.pet.id,

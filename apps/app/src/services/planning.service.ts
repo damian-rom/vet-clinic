@@ -1,17 +1,11 @@
 import { draftBatchSchema } from '@vet-clinic/validation';
 import { z } from 'zod';
-import type { Database } from '@vet-clinic/db';
-import type { Appointment, User } from '@vet-clinic/types';
+import type { Appointment, User, VisitPlan } from '@vet-clinic/types';
 import { visitPlanSchema } from '@vet-clinic/validation';
 import type { PlanningPort } from '../domain/ports/planning.port';
 
-import { active, requireVet, required, isoNow, validatePlan } from '../domain/rules';
-import {
-  appointmentInclude,
-  saveAppointment,
-  toAppointment,
-  toPet,
-} from '../infrastructure/prisma/records';
+import { active, requireVet, isoNow, validatePlan } from '../domain/rules';
+import type { Store } from '../infrastructure/prisma/repositories';
 import { AppointmentsService } from './appointments.service';
 
 const finished = (a: Appointment) =>
@@ -19,7 +13,7 @@ const finished = (a: Appointment) =>
 
 export class PlanningService {
   constructor(
-    private readonly db: Database,
+    private readonly store: Store,
     private readonly ai: PlanningPort,
     private readonly appointments: AppointmentsService,
     private readonly now: () => number,
@@ -33,21 +27,14 @@ export class PlanningService {
       message?: string;
     }[] = [];
     for (const key of [...new Set(appointmentIds)]) {
-      const context = await this.db.read(async (tx) => {
-        const a = toAppointment(
-          required(
-            await tx.appointment.findUnique({ where: { id: key }, include: appointmentInclude }),
-          ),
-        );
+      const context = await this.store.read(async (repos) => {
+        const a = await repos.appointments.get(key);
         if (finished(a)) return undefined;
         return {
           a,
-          pet: toPet(required(await tx.pet.findUnique({ where: { id: a.petId } }))),
-          visitTypes: await tx.visitType.findMany({
-            where: { retired: false },
-            orderBy: [{ name: 'asc' }, { id: 'asc' }],
-          }),
-          products: await tx.product.findMany({ orderBy: [{ name: 'asc' }, { id: 'asc' }] }),
+          pet: await repos.pets.get(a.petId),
+          visitTypes: await repos.visitTypes.listActive(),
+          products: await repos.products.list(),
         };
       });
       if (!context) {
@@ -59,22 +46,21 @@ export class PlanningService {
         const plan = visitPlanSchema.parse(
           await this.ai.draft({ pet, symptoms: a.symptoms, visitTypes, products }),
         );
-        const outcome = await this.db.write(async (tx) => {
-          const current = toAppointment(
-            required(
-              await tx.appointment.findUnique({ where: { id: key }, include: appointmentInclude }),
-            ),
-          );
+        // The AI call ran outside any transaction; skip if the visit changed meanwhile.
+        const outcome = await this.store.write(async (repos) => {
+          const current = await repos.appointments.get(key);
           if (current.revision !== a.revision || finished(current)) return 'skipped' as const;
-          await validatePlan(tx, plan);
-          const candidate: Appointment = {
-            ...current,
-            plan: { ...plan, source: 'ai-draft', originalDraft: plan, savedAt: isoNow(this.now) },
-            revision: current.revision + 1,
+          await validatePlan(repos, plan);
+          const draft: VisitPlan = {
+            ...plan,
+            source: 'ai-draft',
+            originalDraft: plan,
+            savedAt: isoNow(this.now),
           };
-          if (candidate.scheduledAt && active(candidate))
-            await this.appointments.reserve(tx, candidate, false);
-          await saveAppointment(tx, current, candidate);
+          if (current.scheduledAt && active(current))
+            await this.appointments.reserve(repos, { ...current, plan: draft }, false);
+          await repos.appointments.replacePlan(key, draft);
+          await repos.appointments.update(current);
           return 'drafted' as const;
         });
         results.push({ id: key, outcome });

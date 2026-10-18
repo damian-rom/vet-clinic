@@ -1,8 +1,8 @@
 import PDFDocument from 'pdfkit';
 import { z } from 'zod';
 import type { User } from '@vet-clinic/types';
-import type { Database } from '@vet-clinic/db';
-import { fail, required, requireVet } from '../domain/rules';
+import { fail, requireVet } from '../domain/rules';
+import type { Store } from '../infrastructure/prisma/repositories';
 import type { EmailPort } from '../domain/ports/email.port';
 import { SmtpEmailAdapter } from '../infrastructure/email/smtp.adapter';
 
@@ -37,10 +37,10 @@ export interface ClinicReport {
 /** The day after a YYYY-MM-DD date, as an exclusive upper bound for stored ISO instants. */
 const nextDay = (date: string) => new Date(Date.parse(date) + 86400_000).toISOString().slice(0, 10);
 
-/** Reports read related tables through Prisma relations, never caller-supplied SQL. */
+/** Reports read related tables through repository queries, never caller-supplied SQL. */
 export class ReportsService {
   constructor(
-    private readonly db: Database,
+    private readonly store: Store,
     readonly email: EmailPort = new SmtpEmailAdapter(),
   ) {}
 
@@ -50,29 +50,16 @@ export class ReportsService {
     const spanish = filters.language === 'es';
     if (kind !== 'care-history') requireVet(user);
     const range = { gte: filters.from, lt: nextDay(filters.to) };
-    return this.db.read(async (tx) => {
+    return this.store.read(async (repos) => {
       if (filters.petId) {
-        const pet = required(await tx.pet.findUnique({ where: { id: filters.petId } }));
+        const pet = await repos.pets.get(filters.petId);
         if (user.role === 'owner' && pet.ownerId !== user.id) fail('Record not found', 404);
       }
       // Owner rows deliberately exclude visit plans, actives and AI provenance.
       if (kind === 'care-history' || kind === 'clinic-activity') {
-        const appointments = await tx.appointment.findMany({
-          where: {
-            OR: [{ scheduledAt: range }, { scheduledAt: null, createdAt: range }],
-            ...(user.role === 'owner' ? { ownerId: user.id } : {}),
-            ...(filters.petId ? { petId: filters.petId } : {}),
-          },
-          select: {
-            scheduledAt: true,
-            createdAt: true,
-            status: true,
-            pet: { select: { name: true } },
-            owner: { select: { name: true } },
-            vet: { select: { name: true } },
-            plan: { select: { durationMinutes: true, visitType: { select: { name: true } } } },
-          },
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        const appointments = await repos.appointments.forReport(range, {
+          ownerId: user.role === 'owner' ? user.id : undefined,
+          petId: filters.petId,
         });
         const day = (a: (typeof appointments)[number]) => a.scheduledAt ?? a.createdAt;
         const rows = appointments
@@ -109,17 +96,7 @@ export class ReportsService {
           ...filters,
         };
       }
-      const movements = await tx.movement.findMany({
-        where: {
-          performedAt: range,
-          ...(filters.petId ? { appointment: { petId: filters.petId } } : {}),
-        },
-        include: {
-          product: { select: { name: true, unit: true } },
-          performer: { select: { name: true } },
-        },
-        orderBy: [{ performedAt: 'asc' }, { id: 'asc' }],
-      });
+      const movements = await repos.movements.forReport(range, filters.petId);
       return {
         kind,
         title: spanish ? 'Movimientos de inventario' : 'Inventory usage',

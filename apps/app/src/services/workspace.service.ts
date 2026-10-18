@@ -1,29 +1,14 @@
-import type { Database } from '@vet-clinic/db';
 import type { OwnerWorkspace, User, VetWorkspace } from '@vet-clinic/types';
 import { clinicSettings } from '../time';
 import type { PlanningPort } from '../domain/ports/planning.port';
 
 import { active } from '../domain/rules';
-import {
-  appointmentInclude,
-  appointmentOrder,
-  caseInclude,
-  toAppointment,
-  toCase,
-  toMovement,
-  toOwnerAppointment,
-  toPet,
-  toTimeBlock,
-  userSelect,
-} from '../infrastructure/prisma/records';
-
-const byName = [{ name: 'asc' }, { id: 'asc' }] as const;
-const caseOrder = [{ createdAt: 'asc' }, { id: 'asc' }] as const;
+import type { Store } from '../infrastructure/prisma/repositories';
 
 export class WorkspaceService {
   readonly settings;
   constructor(
-    private readonly db: Database,
+    private readonly store: Store,
     private readonly ai: PlanningPort,
     private readonly now: () => number,
     timezone: string,
@@ -34,36 +19,20 @@ export class WorkspaceService {
     return user.role === 'owner' ? this.owner(user) : this.vet(user);
   }
   private owner(user: User): Promise<OwnerWorkspace> {
-    return this.db.read(async (tx) => ({
+    return this.store.read(async (repos) => ({
       user,
-      pets: (await tx.pet.findMany({ where: { ownerId: user.id }, orderBy: [...byName] })).map(
-        toPet,
-      ),
-      appointments: (
-        await tx.appointment.findMany({ where: { ownerId: user.id }, orderBy: appointmentOrder })
-      ).map(toOwnerAppointment),
-      cases: (
-        await tx.case.findMany({
-          where: { pet: { ownerId: user.id } },
-          include: caseInclude,
-          orderBy: [...caseOrder],
-        })
-      ).map(toCase),
-      vets: await tx.user.findMany({
-        where: { role: 'vet' },
-        select: { id: true, name: true },
-        orderBy: [...byName],
-      }),
+      pets: await repos.pets.listByOwner(user.id),
+      appointments: await repos.appointments.listForOwner(user.id),
+      cases: await repos.cases.listByOwner(user.id),
+      vets: await repos.users.vets(),
       clinic: this.settings,
     }));
   }
   private vet(user: User): Promise<VetWorkspace> {
-    return this.db.read(async (tx) => {
-      const appointments = (
-        await tx.appointment.findMany({ include: appointmentInclude, orderBy: appointmentOrder })
-      ).map(toAppointment);
-      const users = await tx.user.findMany({ select: userSelect, orderBy: [...byName] });
-      const products = await tx.product.findMany({ orderBy: [...byName] });
+    return this.store.read(async (repos) => {
+      const appointments = await repos.appointments.list();
+      const users = await repos.users.list();
+      const products = await repos.products.list();
       const upcoming = appointments.filter(
         (a) =>
           a.status === 'NeedsTime' ||
@@ -83,11 +52,9 @@ export class WorkspaceService {
       });
       return {
         user,
-        pets: (await tx.pet.findMany({ orderBy: [...byName] })).map(toPet),
+        pets: await repos.pets.list(),
         appointments,
-        cases: (await tx.case.findMany({ include: caseInclude, orderBy: [...caseOrder] })).map(
-          toCase,
-        ),
+        cases: await repos.cases.list(),
         vets: users.filter((u) => u.role === 'vet'),
         owners: users.filter((u) => u.role === 'owner'),
         products: products.map((p) => ({
@@ -98,13 +65,9 @@ export class WorkspaceService {
             0,
           ),
         })),
-        movements: (
-          await tx.movement.findMany({ orderBy: [{ performedAt: 'asc' }, { id: 'asc' }] })
-        ).map(toMovement),
-        visitTypes: await tx.visitType.findMany({ orderBy: [...byName] }),
-        timeBlocks: (
-          await tx.timeBlock.findMany({ orderBy: [{ startsAt: 'asc' }, { id: 'asc' }] })
-        ).map(toTimeBlock),
+        movements: await repos.movements.list(),
+        visitTypes: await repos.visitTypes.list(),
+        timeBlocks: await repos.timeBlocks.list(),
         clinic: this.settings,
         aiAvailable: this.ai.available,
         metrics: {
