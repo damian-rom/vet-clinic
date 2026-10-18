@@ -18,14 +18,14 @@ export default defineConfig({
   webServer: [
     {
       command:
-        'node node_modules/tsx/dist/cli.mjs --tsconfig apps/app/tsconfig.json apps/app/test/e2e-server.ts',
+        'node apps/app/node_modules/tsx/dist/cli.mjs --tsconfig apps/app/tsconfig.json apps/app/test/e2e-server.ts',
       url: 'http://127.0.0.1:3101/api/health',
       timeout: 60000,
       reuseExistingServer: false,
       env: { APP_ORIGIN: 'http://localhost:3100' },
     },
     {
-      command: 'node ../../node_modules/next/dist/bin/next dev --port 3100',
+      command: 'node node_modules/next/dist/bin/next dev --port 3100',
       cwd: 'apps/web',
       url: 'http://localhost:3100',
       timeout: 90000,

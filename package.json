@@ -1,10 +1,6 @@
 {
   "name": "vet-clinic",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
     "dev": "turbo dev",
     "setup": "node scripts/setup.mjs",
@@ -13,14 +9,15 @@
     "format": "prettier --write apps packages tests scripts *.json *.mjs playwright.config.ts README.md docs/architecture.md docs/acceptance.md .github",
     "format:check": "prettier --check apps packages tests scripts *.json *.mjs playwright.config.ts README.md docs/architecture.md docs/acceptance.md .github",
     "pretest": "turbo build --filter=@vet-clinic/app",
-    "test": "npm run test --workspace=@vet-clinic/app",
+    "test": "pnpm --filter @vet-clinic/app test",
     "typecheck": "turbo typecheck && tsc --noEmit -p tsconfig.tests.json",
-    "db:migrate": "npm run db:migrate --workspace=@vet-clinic/app",
+    "db:migrate": "pnpm --filter @vet-clinic/app db:migrate",
     "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.0",
+    "@types/node": "^24.0.0",
     "eslint": "^10.12.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-unused-imports": "^4.4.1",
@@ -29,11 +26,22 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.1"
   },
-  "packageManager": "npm@11.6.1",
+  "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": ">=24.0.0"
   },
-  "overrides": {
-    "better-sqlite3": "13.0.3"
+  "pnpm": {
+    "overrides": {
+      "better-sqlite3": "13.0.3"
+    },
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "@prisma/engines",
+      "@swc/core",
+      "better-sqlite3",
+      "esbuild",
+      "fsevents",
+      "prisma"
+    ]
   }
 }

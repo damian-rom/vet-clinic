@@ -34,7 +34,7 @@ test('the committed migrations match the Prisma schema', () => {
 
 test('an unmigrated database is refused before any data is written', async () => {
   const path = join(temporaryDirectory(), 'clinic.sqlite');
-  await assert.rejects(() => openDatabase(path), /Run npm run db:migrate/);
+  await assert.rejects(() => openDatabase(path), /Run pnpm db:migrate/);
 });
 
 test('relational writes preserve optional values, booleans, decimals, reordered estimates and cleared nested data', async (t) => {

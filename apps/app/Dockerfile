@@ -6,7 +6,8 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /repo
-COPY package.json package-lock.json ./
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/app/package.json apps/app/
 COPY apps/web/package.json apps/web/
 COPY packages/config/package.json packages/config/
@@ -15,19 +16,15 @@ COPY packages/validation/package.json packages/validation/
 COPY packages/db/package.json packages/db/
 
 FROM base AS build
-RUN npm ci --workspace=@vet-clinic/app --include-workspace-root=false
+RUN pnpm install --frozen-lockfile --filter "@vet-clinic/app..."
 COPY tsconfig.json ./
 COPY packages packages
 COPY apps/app apps/app
-# Dependencies first: the API imports their compiled dist output.
-RUN npm run build --workspace=@vet-clinic/config \
-  && npm run build --workspace=@vet-clinic/types \
-  && npm run build --workspace=@vet-clinic/validation \
-  && npm run build --workspace=@vet-clinic/db \
-  && npm run build --workspace=@vet-clinic/app
+# "app..." builds the workspaces the API imports first, in dependency order.
+RUN pnpm --filter "@vet-clinic/app..." build
 
 FROM base AS production-deps
-RUN npm ci --workspace=@vet-clinic/app --include-workspace-root=false --omit=dev
+RUN pnpm install --frozen-lockfile --prod --filter "@vet-clinic/app..."
 
 FROM node:24-bookworm-slim
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3001 DATABASE_PATH=/data/clinic.sqlite
