@@ -19,6 +19,7 @@ const environment = {
   DATABASE_PATH: databasePath,
   DATABASE_URL: 'file:' + databasePath,
   PORT: '3001',
+  WEB_PORT: '3000',
   HOST: '127.0.0.1',
   APP_ORIGIN: 'http://localhost:3000',
   API_URL: 'http://127.0.0.1:3001',
