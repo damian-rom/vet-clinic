@@ -81,8 +81,7 @@ export function PlanForm({ appointment }: { appointment: Appointment }) {
           <summary>{translate('compareWithOriginalAiDraft')}</summary>
           <p>
             {data.visitTypes.find((t) => t.id === original.visitTypeId)?.name} ·{' '}
-            {original.durationMinutes}
-            {translate('minutes')}
+            {original.durationMinutes} {translate('minutes')}
           </p>
           <ul>
             {original.estimatedActives.map((item) => (

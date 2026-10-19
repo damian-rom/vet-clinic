@@ -54,8 +54,7 @@ export function AppointmentDetail({ id }: { id: string }) {
           </div>
           <p>
             {data.visitTypes.find((t) => t.id === a.plan!.visitTypeId)?.name} ·{' '}
-            {a.plan.durationMinutes}
-            {translate('minutes')}
+            {a.plan.durationMinutes} {translate('minutes')}
           </p>
           <ul>
             {a.plan.estimatedActives.map((item) => (
@@ -73,8 +72,7 @@ export function AppointmentDetail({ id }: { id: string }) {
               <summary>{translate('originalAiDraft')}</summary>
               <p>
                 {data.visitTypes.find((t) => t.id === a.plan!.originalDraft!.visitTypeId)?.name} ·{' '}
-                {a.plan.originalDraft.durationMinutes}
-                {translate('min')}
+                {a.plan.originalDraft.durationMinutes} {translate('min')}
               </p>
               <ul>
                 {a.plan.originalDraft.estimatedActives.map((i) => (

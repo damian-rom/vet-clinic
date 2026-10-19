@@ -215,8 +215,7 @@ export function Calendar() {
                         <strong>{data.pets.find((p) => p.id === a.petId)?.name}</strong>
                         <span>
                           {timeLabel(a.scheduledAt!, data.clinic.timezone)} ·{' '}
-                          {a.plan?.durationMinutes || 30}
-                          {translate('min')}
+                          {a.plan?.durationMinutes || 30} {translate('min')}
                         </span>
                         {(a.plan?.durationMinutes || 30) >= 45 && (
                           <small>
