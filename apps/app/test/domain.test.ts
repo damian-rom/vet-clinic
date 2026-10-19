@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { HttpException } from '@nestjs/common';
+import type { PlanInput } from '@vet-clinic/types';
 import { Clinic } from '../src/clinic';
 import { clinicInstant, localParts } from '../src/time';
 import {
@@ -457,6 +458,40 @@ test('BR-14: used visit types retained, rename/retire/restore and unused types d
   await f.plan(b.id);
   const temp = await f.clinic.configuration.visitType(f.vets[0], { name: 'Temporary' });
   await f.clinic.configuration.deleteVisitType(f.vets[0], temp.id);
+});
+
+test('plans list materials unless their visit type marks them optional, for vets and AI alike', async (t) => {
+  const f = await fixture();
+  t.after(() => f.db.close());
+  const a = await f.book();
+  const vaccine = await f.clinic.inventory.createProduct(f.vets[0], {
+    name: 'Vaccine',
+    unit: 'dose',
+  });
+  const save = async (visitTypeId: string, estimatedActives: PlanInput['estimatedActives']) =>
+    f.clinic.appointments.appointment(f.vets[0], a.id, 'plan', {
+      visitTypeId,
+      durationMinutes: 30,
+      estimatedActives,
+      revision: (await f.appointment(a.id)).revision,
+    });
+  await assert.rejects(() => save('type-4', []), /must list the materials it uses/);
+  await save('type-4', [{ productId: vaccine.id, quantity: 1 }]);
+  // Renaming keeps the setting: it lives on the visit type, not its name.
+  await f.clinic.configuration.visitType(f.vets[0], { name: 'Consultation' }, 'type-1');
+  await save('type-1', []);
+
+  const b = await f.book(addMinutes(TIME, 60));
+  f.ai.plan = { visitTypeId: 'type-4', durationMinutes: 30, estimatedActives: [] };
+  const drafted = await f.clinic.planning.draft(f.vets[0], { appointmentIds: [b.id] });
+  assert.equal(drafted.results[0].outcome, 'failed');
+  await f.clinic.configuration.visitType(
+    f.vets[0],
+    { name: 'Vaccination', materialsOptional: true },
+    'type-4',
+  );
+  const retried = await f.clinic.planning.draft(f.vets[0], { appointmentIds: [b.id] });
+  assert.equal(retried.results[0].outcome, 'drafted');
 });
 
 test('clinic timezone converts winter/summer correctly and preserves local opening hours', async () => {

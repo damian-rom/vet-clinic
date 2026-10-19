@@ -59,6 +59,7 @@ export interface VisitType {
   id: string;
   name: string;
   retired: boolean;
+  materialsOptional: boolean;
 }
 export interface Case {
   id: string;

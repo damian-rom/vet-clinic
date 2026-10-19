@@ -33,6 +33,8 @@ const spanishErrors: Record<string, string> = {
   'This appointment changed. Refresh and try again':
     'La cita cambió. Cierra el formulario y ábrelo de nuevo',
   'Choose an active visit type': 'Elige un tipo de visita activo',
+  'This visit type must list the materials it uses':
+    'Este tipo de visita debe indicar los materiales que utiliza',
   'Invalid JSON request': 'La solicitud JSON no es válida',
   'Request is too large': 'La solicitud es demasiado grande',
   'The clinic server is unavailable. Please try again.':

@@ -122,7 +122,11 @@ export const timeBlockSchema = z
   .strict()
   .refine((v) => Date.parse(v.endsAt) > Date.parse(v.startsAt), 'End must be after start');
 export const visitTypeSchema = z
-  .object({ name: text(100), retired: z.boolean().optional() })
+  .object({
+    name: text(100),
+    retired: z.boolean().optional(),
+    materialsOptional: z.boolean().optional(),
+  })
   .strict();
 
 export const emptyRequestSchema = z.object({}).strict();
