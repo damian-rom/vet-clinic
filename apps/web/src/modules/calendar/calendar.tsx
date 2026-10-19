@@ -155,7 +155,17 @@ export function Calendar() {
                       aria-label={`${date} ${time}`}
                     />
                   ))}
-                  {data.timeBlocks
+                  {[
+                    ...data.timeBlocks,
+                    // Weekly blocks land on every matching weekday.
+                    ...data.weeklyTimeBlocks
+                      .filter((b) => b.weekday === new Date(`${date}T12:00:00Z`).getUTCDay())
+                      .map((b) => ({
+                        ...b,
+                        startsAt: instant(date, b.startTime, data.clinic.timezone),
+                        endsAt: instant(date, b.endTime, data.clinic.timezone),
+                      })),
+                  ]
                     .filter((b) => Date.parse(b.startsAt) < end && Date.parse(b.endsAt) > start)
                     .map((b) => (
                       <div

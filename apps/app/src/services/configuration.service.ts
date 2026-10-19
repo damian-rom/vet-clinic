@@ -1,12 +1,13 @@
 import type { User } from '@vet-clinic/types';
-import { timeBlockSchema, visitTypeSchema } from '@vet-clinic/validation';
-import { endOf, overlaps } from '../time';
+import { timeBlockSchema, visitTypeSchema, weeklyTimeBlockSchema } from '@vet-clinic/validation';
+import { endOf, overlaps, weeklyOccurrences } from '../time';
 import { fail, requireVet } from '../domain/rules';
 import type { Store } from '../infrastructure/prisma/repositories';
 export class ConfigurationService {
   constructor(
     private readonly store: Store,
     private readonly now: () => number,
+    private readonly timezone: string,
   ) {}
   async visitType(user: User, input: unknown, key?: string) {
     requireVet(user);
@@ -55,6 +56,37 @@ export class ConfigurationService {
       )
         fail('A block cannot overlap an existing appointment');
       return repos.timeBlocks.create(data);
+    });
+  }
+  async weeklyTimeBlock(user: User, input: unknown) {
+    requireVet(user);
+    const data = weeklyTimeBlockSchema.parse(input);
+    return this.store.write(async (repos) => {
+      const visits = await repos.appointments.scheduledNear(this.now(), undefined, [
+        'AwaitingConfirmation',
+        'Confirmed',
+      ]);
+      if (
+        visits.some(
+          (a) =>
+            weeklyOccurrences(
+              [data],
+              Date.parse(a.scheduledAt),
+              endOf(a.scheduledAt, a.durationMinutes),
+              this.timezone,
+            ).length,
+        )
+      )
+        fail('A weekly block cannot overlap an upcoming appointment');
+      return repos.weeklyTimeBlocks.create(data);
+    });
+  }
+  async deleteWeeklyTimeBlock(user: User, key: string) {
+    requireVet(user);
+    return this.store.write(async (repos) => {
+      await repos.weeklyTimeBlocks.get(key);
+      await repos.weeklyTimeBlocks.delete(key);
+      return { ok: true };
     });
   }
   async deleteTimeBlock(user: User, key: string) {

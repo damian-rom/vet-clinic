@@ -28,4 +28,12 @@ export class ConfigurationController {
   deleteBlock(@Actor() user: User, @Param('id') id: string) {
     return this.clinic.configuration.deleteTimeBlock(user, id);
   }
+  @Post('weekly-time-blocks')
+  weeklyBlock(@Actor() user: User, @Body() body: unknown) {
+    return this.clinic.configuration.weeklyTimeBlock(user, body);
+  }
+  @Delete('weekly-time-blocks/:id')
+  deleteWeeklyBlock(@Actor() user: User, @Param('id') id: string) {
+    return this.clinic.configuration.deleteWeeklyTimeBlock(user, id);
+  }
 }

@@ -10,6 +10,7 @@ import type {
   TimeBlock,
   User,
   VisitPlan,
+  WeeklyTimeBlock,
 } from '@vet-clinic/types';
 
 /** SQL NULL represents an omitted optional entity property. */
@@ -102,6 +103,8 @@ export const toMovement = (row: Prisma.MovementGetPayload<object>) =>
   present(row) as unknown as StockMovement;
 export const toTimeBlock = (row: Prisma.TimeBlockGetPayload<object>) =>
   present(row) as unknown as TimeBlock;
+export const toWeeklyTimeBlock = (row: Prisma.WeeklyTimeBlockGetPayload<object>) =>
+  present(row) as unknown as WeeklyTimeBlock;
 export const toUser = ({ id, name, email, role }: User): User => ({ id, name, email, role });
 
 /** Scalar appointment columns; repositories write nested plans and usage separately. */

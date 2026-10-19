@@ -10,7 +10,14 @@ import { HttpException } from '@nestjs/common';
 import { z } from 'zod';
 import type { Appointment, User, VisitPlan } from '@vet-clinic/types';
 import { bookAppointmentSchema } from '@vet-clinic/validation';
-import { clinicSettings, clinicInstant, endOf, localParts, overlaps } from '../time';
+import {
+  clinicSettings,
+  clinicInstant,
+  endOf,
+  localParts,
+  overlaps,
+  weeklyOccurrences,
+} from '../time';
 import {
   fail,
   id,
@@ -63,13 +70,17 @@ export class AppointmentsService {
   /** Loads blocks and active visits that could overlap [from, to). */
   private async schedule(repos: Repositories, from: number, to: number): Promise<Schedule> {
     const blocks = await repos.timeBlocks.overlapping(from, to);
+    const weekly = await repos.weeklyTimeBlocks.list();
     const visits = await repos.appointments.scheduledNear(from, to, [
       'Confirmed',
       'AwaitingConfirmation',
     ]);
     return {
       capacity: await repos.users.countVets(),
-      blocks: blocks.map((b) => ({ start: Date.parse(b.startsAt), end: Date.parse(b.endsAt) })),
+      blocks: [
+        ...blocks.map((b) => ({ start: Date.parse(b.startsAt), end: Date.parse(b.endsAt) })),
+        ...weeklyOccurrences(weekly, from, to, this.settings.timezone),
+      ],
       visits: visits.map((a) => ({
         id: a.id,
         vetId: a.vetId,

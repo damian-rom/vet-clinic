@@ -63,7 +63,14 @@ test('BR-2: owners receive only their own records and no planning, stock, calend
   assert.equal(snapshot.appointments.length, 1);
   for (const key of ['plan', 'actualActives', 'revision'])
     assert.ok(!(key in snapshot.appointments[0]));
-  for (const key of ['timeBlocks', 'products', 'movements', 'owners', 'aiAvailable'])
+  for (const key of [
+    'timeBlocks',
+    'weeklyTimeBlocks',
+    'products',
+    'movements',
+    'owners',
+    'aiAvailable',
+  ])
     assert.ok(!(key in snapshot));
   assert.equal((await f.clinic.views.workspace(other)).pets.length, 0);
   await denied(async () => f.clinic.appointments.appointment(other, a.id, 'cancel', {}), 404);
@@ -206,6 +213,52 @@ test('BR-7: time blocks refuse pending and long appointments, then hide open slo
   await f.clinic.appointments.appointment(f.owner, a.id, 'pick-time', { scheduledAt: TIME });
   assert.equal((await f.appointment(a.id)).status, 'AwaitingConfirmation');
   assert.equal((await f.appointment(a.id)).vetId, undefined);
+});
+
+test('weekly time blocks close the same hours every week and refuse upcoming visits', async (t) => {
+  const f = await fixture();
+  t.after(() => f.db.close());
+  const nextWeek = '2030-01-14';
+  // 09:00–10:00 every Monday at the clinic; DAY and nextWeek are Mondays.
+  const block = await f.clinic.configuration.weeklyTimeBlock(f.vets[0], {
+    weekday: 1,
+    startTime: '09:00',
+    endTime: '10:00',
+    reason: 'Team meeting',
+  });
+  for (const date of [DAY, nextWeek]) {
+    const { slots } = await f.clinic.appointments.slots(f.owner, date);
+    assert.ok(!slots.includes(clinicInstant(date, 9, 0, 'America/Havana')));
+    assert.ok(!slots.includes(clinicInstant(date, 9, 30, 'America/Havana')));
+    assert.ok(slots.includes(clinicInstant(date, 10, 0, 'America/Havana')));
+  }
+  // Tuesday is untouched.
+  assert.ok(
+    (await f.clinic.appointments.slots(f.owner, '2030-01-08')).slots.includes(
+      clinicInstant('2030-01-08', 9, 0, 'America/Havana'),
+    ),
+  );
+  await denied(async () => f.book(clinicInstant(nextWeek, 9, 30, 'America/Havana')));
+
+  await f.clinic.configuration.deleteWeeklyTimeBlock(f.vets[0], block.id);
+  await f.book(clinicInstant(nextWeek, 9, 30, 'America/Havana'));
+  await denied(
+    async () =>
+      await f.clinic.configuration.weeklyTimeBlock(f.vets[0], {
+        weekday: 1,
+        startTime: '09:00',
+        endTime: '10:00',
+      }),
+  );
+  await denied(
+    async () =>
+      await f.clinic.configuration.weeklyTimeBlock(f.owner, {
+        weekday: 2,
+        startTime: '09:00',
+        endTime: '10:00',
+      }),
+    403,
+  );
 });
 
 test('BR-8/9: AI never confirms, keeps original draft, marks review and skips human work', async (t) => {

@@ -200,6 +200,18 @@ model TimeBlock {
   @@map("time_blocks")
 }
 
+/// Blocks the same clinic-local hours every week; times are "HH:MM" in the clinic timezone.
+model WeeklyTimeBlock {
+  id        String  @id
+  /// 0 = Sunday … 6 = Saturday.
+  weekday   Int
+  startTime String  @map("start_time")
+  endTime   String  @map("end_time")
+  reason    String?
+
+  @@map("weekly_time_blocks")
+}
+
 model AppointmentPlan {
   appointmentId   String  @id @map("appointment_id")
   visitTypeId     String  @map("visit_type_id")

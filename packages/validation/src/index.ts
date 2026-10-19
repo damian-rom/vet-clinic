@@ -121,6 +121,16 @@ export const timeBlockSchema = z
   })
   .strict()
   .refine((v) => Date.parse(v.endsAt) > Date.parse(v.startsAt), 'End must be after start');
+const clockTime = () => z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a HH:MM time');
+export const weeklyTimeBlockSchema = z
+  .object({
+    weekday: z.number().int().min(0).max(6),
+    startTime: clockTime(),
+    endTime: clockTime(),
+    reason: z.string().trim().max(1000).optional(),
+  })
+  .strict()
+  .refine((v) => v.endTime > v.startTime, 'End must be after start');
 export const visitTypeSchema = z
   .object({
     name: text(100),
@@ -158,6 +168,7 @@ export function requestSchema(path: string, method: string): z.ZodType | undefin
   if (path === 'movements') return stockMovementSchema;
   if (path === 'visit-types' || /^visit-types\/[^/]+$/.test(path)) return visitTypeSchema;
   if (path === 'time-blocks') return timeBlockSchema;
+  if (path === 'weekly-time-blocks') return weeklyTimeBlockSchema;
   const action = /^appointments\/[^/]+\/([^/]+)$/.exec(path)?.[1];
   const actions: Record<string, z.ZodType> = {
     assign: assignVetSchema,

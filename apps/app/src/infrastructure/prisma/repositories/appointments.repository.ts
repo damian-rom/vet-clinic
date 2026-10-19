@@ -146,9 +146,10 @@ export class AppointmentsRepository extends BaseRepository<Appointment> {
   }
 
   /** Visits in `statuses` that could overlap the instants [from, to). */
+  /** Visits that could overlap [from, to); with no `to`, every later visit. */
   async scheduledNear(
     from: number,
-    to: number,
+    to: number | undefined,
     statuses: AppointmentStatus[],
   ): Promise<ScheduledVisit[]> {
     const rows = await this.tx.appointment.findMany({
@@ -157,7 +158,7 @@ export class AppointmentsRepository extends BaseRepository<Appointment> {
         // Stored instants share one ISO format, so text comparison follows time order.
         scheduledAt: {
           gte: new Date(from - MAX_VISIT_MINUTES * 60_000).toISOString(),
-          lt: new Date(to).toISOString(),
+          ...(to === undefined ? {} : { lt: new Date(to).toISOString() }),
         },
       },
       select: {

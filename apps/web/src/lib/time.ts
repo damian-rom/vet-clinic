@@ -59,3 +59,11 @@ export const addDays = (date: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 export const today = (c: ClinicSettings) => dateInClinic(new Date().toISOString(), c.timezone);
+/** The weekday's name, 0 = Sunday … 6 = Saturday. */
+export const weekdayLabel = (weekday: number, locale: string) =>
+  new Date(Date.UTC(2030, 0, 6 + weekday)).toLocaleDateString(locale, {
+    weekday: 'long',
+    timeZone: 'UTC',
+  });
+/** Weekdays in display order, Monday first. */
+export const WEEKDAYS = [1, 2, 3, 4, 5, 6, 0];

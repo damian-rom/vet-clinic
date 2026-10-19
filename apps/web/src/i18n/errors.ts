@@ -15,6 +15,8 @@ const spanishErrors: Record<string, string> = {
     'Este veterinario ya tiene una cita que se solapa',
   'A block cannot overlap an existing appointment':
     'Un bloqueo no puede solaparse con una cita existente',
+  'A weekly block cannot overlap an upcoming appointment':
+    'Un bloqueo semanal no puede solaparse con una cita próxima',
   'Stock cannot become negative': 'Las existencias no pueden ser negativas',
   'Case checkpoints are managed by the clinic': 'La clínica gestiona las etapas de los casos',
   'Checkpoints without the pet must be scheduled by a veterinarian':

@@ -81,6 +81,7 @@ export class WorkspaceService {
         movements: await repos.movements.list(),
         visitTypes: await repos.visitTypes.list(),
         timeBlocks: await repos.timeBlocks.list(),
+        weeklyTimeBlocks: await repos.weeklyTimeBlocks.list(),
         clinic: this.settings,
         aiAvailable: this.ai.available,
         metrics: {

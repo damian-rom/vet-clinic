@@ -8,6 +8,7 @@ import { SessionsRepository } from './sessions.repository';
 import { TimeBlocksRepository } from './time-blocks.repository';
 import { UsersRepository } from './users.repository';
 import { VisitTypesRepository } from './visit-types.repository';
+import { WeeklyTimeBlocksRepository } from './weekly-time-blocks.repository';
 
 /** Every repository, bound to one transaction. */
 export class Repositories {
@@ -20,6 +21,7 @@ export class Repositories {
   readonly movements: MovementsRepository;
   readonly visitTypes: VisitTypesRepository;
   readonly timeBlocks: TimeBlocksRepository;
+  readonly weeklyTimeBlocks: WeeklyTimeBlocksRepository;
   constructor(tx: Tx) {
     this.users = new UsersRepository(tx);
     this.sessions = new SessionsRepository(tx);
@@ -30,6 +32,7 @@ export class Repositories {
     this.movements = new MovementsRepository(tx);
     this.visitTypes = new VisitTypesRepository(tx);
     this.timeBlocks = new TimeBlocksRepository(tx);
+    this.weeklyTimeBlocks = new WeeklyTimeBlocksRepository(tx);
   }
 }
 

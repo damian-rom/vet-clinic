@@ -1,8 +1,8 @@
 'use client';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { dateLabel } from '@/lib/time';
+import { dateLabel, weekdayLabel, WEEKDAYS } from '@/lib/time';
 import { Button } from '@/components/button';
 import { Empty, PageHeading } from '@/components/common';
 import { useVet } from '@/components/context';
@@ -11,6 +11,23 @@ import { BlockForm } from '@/modules/configuration/forms/time-block-form';
 export function Configuration() {
   const translate = useTranslations('clinic');
   const { data, open, run, busy } = useVet();
+  const locale = useLocale();
+  const weekly = [...data.weeklyTimeBlocks].sort(
+    (a, b) => WEEKDAYS.indexOf(a.weekday) - WEEKDAYS.indexOf(b.weekday),
+  );
+  /** Asks before deleting a block; `path` is its API resource. */
+  const removeBlock = (path: string) =>
+    open(
+      translate('removeThisTimeBlock'),
+      translate('thisTimeWillBecomeAvailableForBookingAgain'),
+      <Button
+        disabled={busy}
+        variant="destructive"
+        onClick={() => void run(() => api(path, {}, 'DELETE'), translate('timeBlockRemoved'))}
+      >
+        {translate('removeBlock')}
+      </Button>,
+    );
   return (
     <>
       <PageHeading
@@ -152,6 +169,41 @@ export function Configuration() {
             {translate('addBlock')}
           </Button>
         </div>
+        {weekly.length > 0 && (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{translate('everyWeekOn')}</th>
+                  <th>{translate('hours')}</th>
+                  <th>{translate('reason')}</th>
+                  <th>{translate('action')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {weekly.map((b) => (
+                  <tr key={b.id}>
+                    <td>{weekdayLabel(b.weekday, locale)}</td>
+                    <td>
+                      {b.startTime}–{b.endTime}
+                    </td>
+                    <td>{b.reason || translate('clinicUnavailable')}</td>
+                    <td>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => removeBlock(`weekly-time-blocks/${b.id}`)}
+                      >
+                        {translate('remove')}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         {data.timeBlocks.length ? (
           <div className="table-wrap">
             <table>
@@ -174,24 +226,7 @@ export function Configuration() {
                         size="sm"
                         variant="outline"
                         disabled={busy}
-                        onClick={() =>
-                          open(
-                            translate('removeThisTimeBlock'),
-                            translate('thisTimeWillBecomeAvailableForBookingAgain'),
-                            <Button
-                              disabled={busy}
-                              variant="destructive"
-                              onClick={() =>
-                                void run(
-                                  () => api(`time-blocks/${b.id}`, {}, 'DELETE'),
-                                  translate('timeBlockRemoved'),
-                                )
-                              }
-                            >
-                              {translate('removeBlock')}
-                            </Button>,
-                          )
-                        }
+                        onClick={() => removeBlock(`time-blocks/${b.id}`)}
                       >
                         {translate('remove')}
                       </Button>
@@ -202,10 +237,12 @@ export function Configuration() {
             </table>
           </div>
         ) : (
-          <Empty
-            title={translate('noClosingRanges')}
-            text={translate('addATimeBlockForAHolidayLunchOrAnotherUnavailablePeriod')}
-          />
+          !weekly.length && (
+            <Empty
+              title={translate('noClosingRanges')}
+              text={translate('addATimeBlockForAHolidayLunchOrAnotherUnavailablePeriod')}
+            />
+          )
         )}
       </section>
     </>

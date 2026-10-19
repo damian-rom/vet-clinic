@@ -91,6 +91,14 @@ export interface TimeBlock {
   endsAt: string;
   reason?: string;
 }
+/** Repeats every week on `weekday` (0 = Sunday … 6 = Saturday), in clinic-local "HH:MM". */
+export interface WeeklyTimeBlock {
+  id: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  reason?: string;
+}
 export interface ClinicSettings {
   openHour: number;
   closeHour: number;
@@ -120,6 +128,7 @@ export interface VetWorkspace {
   movements: StockMovement[];
   visitTypes: VisitType[];
   timeBlocks: TimeBlock[];
+  weeklyTimeBlocks: WeeklyTimeBlock[];
   clinic: ClinicSettings;
   aiAvailable: boolean;
   metrics: {
