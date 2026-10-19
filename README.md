@@ -4,7 +4,7 @@ A full-stack veterinary clinic workspace for owner booking, clinical visit plann
 
 ## Run locally
 
-Use **Node.js 24 LTS** and pnpm (`npm install -g pnpm`). From the repository root:
+Use **Node.js 24 LTS** and **pnpm 9.15.9** (`npm install -g pnpm@9.15.9`). From the repository root:
 
 ```bash
 pnpm install
@@ -21,6 +21,16 @@ The API listens on port 3001. Next.js forwards same-origin `/api` requests to it
 The schema lives in `packages/db` as a Prisma model with SQL migrations. `pnpm dev` and `pnpm start` apply pending migrations before the API starts; run `pnpm db:migrate` to apply them yourself. The API refuses to open a database with unapplied migrations. Plans, original AI drafts and product-usage lists have their own related tables. You can inspect the SQLite file with a SQLite database viewer; see [the data model](docs/architecture.md#data-and-transaction-model) for the table relationships.
 
 This release starts from a fresh Prisma baseline. Databases created by earlier versions, including the original `id`/`document` tables, are not converted; start with a new database file.
+
+## Presentation with sample data
+
+Run `pnpm demo` (or `pnpm.cmd demo` on Windows) to load sample records and start the normal app at http://localhost:3000 with its own `apps/app/data/presentation.sqlite` database. Stop other servers on ports 3000/3001 first. Your configured clinic database and API environment file are preserved. AI and report email use the real providers configured in `apps/app/.env`; seeding itself sends no external requests.
+
+The sample clinic includes two vets, two owners, four pets, thirteen visits, a care case, five inventory products, stock history, calendar blocks and a past visit ready to complete. Sign in as `ana@pawstead.test` (vet) or `sofia@pawstead.test` (owner), using `Pawstead-Demo-2026!`. The terminal prints all accounts and the first demonstration date. Set `DEMO_OWNER_EMAIL` in the API environment before creating fresh data if Sofia should receive real report emails.
+
+Ordinary demo restarts preserve your rehearsal changes. Use `pnpm demo --fresh` to back up and reset only the presentation database, with dates recalculated around the current clinic-local day. Use `pnpm demo --seed-only` to prepare the data without starting servers. Follow the [grading presentation walkthrough](docs/presentation.md) for preparation, the exact demonstration sequence, expected results and a five-minute version.
+
+For Docker, stop the normal frontend with `docker compose stop web`, then run `docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build`. This starts the same sample clinic at http://localhost:3000 in a separate `vet-clinic-demo` project and volume. Its API loads sample records on first startup and preserves edits on subsequent starts. Provider settings still come from `apps/app/.env`. The walkthrough includes Docker restart and reset commands.
 
 ## Run with Docker
 

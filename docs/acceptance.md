@@ -1,5 +1,7 @@
 # Acceptance coverage
 
+Presentation data is loaded with `pnpm demo` into its own persistent SQLite file. The seed tests verify all demo logins, existing-record preservation, repeat and concurrent runs, rollback on account conflicts, schedule validity, stock-ledger balances, completion, checkpoint confirmation, AI review, PDF email through a test adapter and clinic-local dates across clock changes. See [the grading walkthrough](presentation.md) for the live demonstration sequence.
+
 The original overview and the local implementation plan are not part of the tracked repository. This checklist describes the implemented behavior and its automated verification.
 
 | Requirement                                     | Implementation and verification                                                                                                                 |

@@ -1,0 +1,19 @@
+# Use with: docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+# A separate project owns a separate volume; the ordinary clinic database is preserved.
+name: vet-clinic-demo
+
+services:
+  db:
+    image: vet-clinic-db
+    environment:
+      DATABASE_URL: file:/data/presentation.sqlite
+
+  api:
+    image: vet-clinic-api
+    environment:
+      DATABASE_PATH: /data/presentation.sqlite
+      COOKIE_SECURE: 'false'
+    command: ['sh', '-c', 'node dist/demo/cli.js && exec node dist/main.js']
+
+  web:
+    image: vet-clinic-web
