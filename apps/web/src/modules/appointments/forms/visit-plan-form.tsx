@@ -50,7 +50,7 @@ export function PlanForm({ appointment }: { appointment: Appointment }) {
               .map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
-                  {t.retired ? translate('retired') : ''}
+                  {t.retired ? ` ${translate('retired')}` : ''}
                 </option>
               ))}
           </select>

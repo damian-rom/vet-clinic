@@ -61,8 +61,7 @@ export function Cases() {
                     <div>
                       <h2>{c.name}</h2>
                       <p className="muted">
-                        {pet?.name} · {c.checkpointIds.length}
-                        {translate('checkpoints')}
+                        {pet?.name} · {c.checkpointIds.length} {translate('checkpoints')}
                       </p>
                     </div>
                   </div>
@@ -124,9 +123,9 @@ export function Cases() {
                                 ? translate('bringYourPet')
                                 : translate('yourPetIsNotNeeded')}
                               {a.vetId
-                                ? translate('drValue02', {
+                                ? ` ${translate('drValue02', {
                                     value0: data.vets.find((v) => v.id === a.vetId)?.name ?? '',
-                                  })
+                                  })}`
                                 : ''}
                             </span>
                             {vet ? (

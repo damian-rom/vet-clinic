@@ -61,9 +61,8 @@ export function ActivesEditor({
             </Button>
             {product && (
               <small className={item.quantity > product.stock ? 'stock-warning' : 'muted'}>
-                {translate('inStock')}
-                {product.stock} {product.unit}
-                {item.quantity > product.stock ? translate('exceedsStock') : ''}
+                {translate('inStock')} {product.stock} {product.unit}
+                {item.quantity > product.stock ? ` ${translate('exceedsStock')}` : ''}
               </small>
             )}
           </div>

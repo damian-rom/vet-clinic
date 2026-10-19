@@ -31,8 +31,7 @@ export function MovementForm({ product }: { product?: Product }) {
         <select name="productId" defaultValue={product?.id || data.products[0]?.id} required>
           {data.products.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name} · {p.stock} {p.unit}
-              {translate('inStock2')}
+              {p.name} · {p.stock} {p.unit} {translate('inStock2')}
             </option>
           ))}
         </select>

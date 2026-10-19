@@ -101,10 +101,8 @@ export function AppointmentDetail({ id }: { id: string }) {
             <p>{translate('noSuppliesUsed')}</p>
           )}
           <p>
-            {translate('completed')}
-            {dateLabel(a.completedAt, data.clinic.timezone)}
-            {translate('byDr')}
-            {vet?.name}
+            {translate('completed')} {dateLabel(a.completedAt, data.clinic.timezone)}{' '}
+            {translate('byDr')} {vet?.name}
           </p>
         </div>
       )}

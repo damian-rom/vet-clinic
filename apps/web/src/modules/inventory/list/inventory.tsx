@@ -89,8 +89,7 @@ export function Inventory() {
                   <td>
                     <strong>{p.name}</strong>
                     <small>
-                      {translate('unit2')}
-                      {p.unit}
+                      {translate('unit2')} {p.unit}
                     </small>
                   </td>
                   <td>
@@ -102,8 +101,8 @@ export function Inventory() {
                   <td>
                     {p.needed > p.stock ? (
                       <span className="stock-warning">
-                        {translate('shortBy')}
-                        {Math.round((p.needed - p.stock) * 1e8) / 1e8} {p.unit}
+                        {translate('shortBy')} {Math.round((p.needed - p.stock) * 1e8) / 1e8}{' '}
+                        {p.unit}
                       </span>
                     ) : (
                       <span className="stock-ok">{translate('covered')}</span>
