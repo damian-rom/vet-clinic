@@ -48,3 +48,32 @@ export function clinicInstant(
 }
 export const endOf = (start: string, minutes: number) => Date.parse(start) + minutes * 60_000;
 export const overlaps = (a: number, b: number, c: number, d: number) => a < d && c < b;
+/** The clinic-local date `n` days after `date`. */
+const nextDate = (date: string, n: number) =>
+  new Date(Date.parse(`${date}T12:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
+/** Each weekly block's concrete occurrences that overlap [from, to). */
+export function weeklyOccurrences(
+  blocks: { weekday: number; startTime: string; endTime: string }[],
+  from: number,
+  to: number,
+  timezone: string,
+): { start: number; end: number }[] {
+  const occurrences: { start: number; end: number }[] = [];
+  if (!blocks.length) return occurrences;
+  const at = (date: string, time: string) =>
+    Date.parse(clinicInstant(date, Number(time.slice(0, 2)), Number(time.slice(3)), timezone));
+  const last = localParts(new Date(to).toISOString(), timezone).date;
+  for (
+    let date = localParts(new Date(from).toISOString(), timezone).date;
+    date <= last;
+    date = nextDate(date, 1)
+  ) {
+    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+    for (const block of blocks.filter((b) => b.weekday === weekday)) {
+      const start = at(date, block.startTime);
+      const end = at(date, block.endTime);
+      if (overlaps(start, end, from, to)) occurrences.push({ start, end });
+    }
+  }
+  return occurrences;
+}

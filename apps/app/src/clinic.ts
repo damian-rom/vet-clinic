@@ -42,7 +42,7 @@ export class Clinic {
     this.appointments = new AppointmentsService(store, this.inventory, now, timezone);
     this.planning = new PlanningService(store, ai, this.appointments, now);
     this.cases = new CasesService(store, this.appointments, now);
-    this.configuration = new ConfigurationService(store, now);
+    this.configuration = new ConfigurationService(store, now, timezone);
     this.views = new WorkspaceService(store, ai, now, timezone);
     this.reports = new ReportsService(store, email);
   }
