@@ -68,8 +68,7 @@ export function VetHome() {
       {low.length > 0 && (
         <a href="#inventory" className="notice warning">
           <AlertTriangle size={19} />
-          {low.length}
-          {translate('productsFallShortOfUpcomingPlansReviewInventory')}
+          {low.length} {translate('productsFallShortOfUpcomingPlansReviewInventory')}
           <ArrowRight size={16} />
         </a>
       )}
