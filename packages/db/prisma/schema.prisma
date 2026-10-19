@@ -181,6 +181,8 @@ model VisitType {
   id      String  @id
   name    String
   retired Boolean
+  /// Plans of this type may list no materials; every other type must list at least one.
+  materialsOptional Boolean @default(false) @map("materials_optional")
 
   plans  AppointmentPlan[]
   drafts AppointmentAiDraft[]

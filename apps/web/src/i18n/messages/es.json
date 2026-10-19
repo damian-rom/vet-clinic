@@ -244,6 +244,8 @@
     "aCategoryForVisitPlanningAndAiDrafts": "Una categoría para la planificación y los borradores de IA.",
     "addType": "Añadir tipo",
     "retired2": "Retirado",
+    "materialsOptional": "Los planes pueden omitir materiales",
+    "materialsOptionalTag": "Materiales opcionales",
     "renameValue0": "Renombrar {value0}",
     "renameVisitType": "Renombrar tipo de visita",
     "existingVisitsKeepTheirRelationshipToThisType": "Las visitas existentes mantienen su relación con este tipo.",

@@ -30,9 +30,13 @@ export function passwordMatches(password: string, stored: string) {
 }
 export const sameSecret = (a: string, b: string) =>
   timingSafeEqual(Buffer.from(hashToken(a), 'hex'), Buffer.from(hashToken(b), 'hex'));
+/** Plans must list at least one material unless their visit type marks materials optional. */
+export const requiresMaterials = (type: { materialsOptional: boolean }) => !type.materialsOptional;
 export async function validatePlan(repos: Repositories, plan: PlanInput, previousType?: string) {
   const type = await repos.visitTypes.get(plan.visitTypeId);
   if (type.retired && type.id !== previousType) fail('Choose an active visit type');
+  if (requiresMaterials(type) && !plan.estimatedActives.length)
+    fail('This visit type must list the materials it uses', 400);
   if (!(await repos.products.allExist(plan.estimatedActives.map((item) => item.productId))))
     fail('Record not found', 404);
 }

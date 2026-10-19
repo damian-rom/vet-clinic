@@ -16,7 +16,10 @@ export function VisitTypeForm({ type }: { type?: VisitType }) {
           () =>
             api(
               type ? `visit-types/${type.id}` : 'visit-types',
-              formValues(e.currentTarget),
+              {
+                name: formValues(e.currentTarget).name,
+                materialsOptional: e.currentTarget.materialsOptional.checked,
+              },
               type ? 'PATCH' : 'POST',
             ),
           translate('visitTypeSaved'),
@@ -26,6 +29,10 @@ export function VisitTypeForm({ type }: { type?: VisitType }) {
       <Field label={translate('visitTypeName')}>
         <input name="name" defaultValue={type?.name} required maxLength={100} />
       </Field>
+      <label className="checkbox-field">
+        <input name="materialsOptional" type="checkbox" defaultChecked={type?.materialsOptional} />
+        {translate('materialsOptional')}
+      </label>
       <Button disabled={busy} type="submit">
         {translate('saveVisitType')}
       </Button>

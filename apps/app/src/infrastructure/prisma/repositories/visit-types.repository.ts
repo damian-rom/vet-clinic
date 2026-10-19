@@ -26,10 +26,13 @@ export class VisitTypesRepository extends BaseRepository<VisitType> {
       (await this.tx.appointmentAiDraft.count({ where: { visitTypeId: typeId } })) > 0
     );
   }
-  create(data: { name: string; retired: boolean }): Promise<VisitType> {
+  create(data: { name: string; retired: boolean; materialsOptional: boolean }): Promise<VisitType> {
     return this.tx.visitType.create({ data: { ...data, id: id() } });
   }
-  update(typeId: string, data: { name: string; retired?: boolean }): Promise<VisitType> {
+  update(
+    typeId: string,
+    data: { name: string; retired?: boolean; materialsOptional?: boolean },
+  ): Promise<VisitType> {
     return this.tx.visitType.update({ where: { id: typeId }, data });
   }
   async delete(typeId: string) {

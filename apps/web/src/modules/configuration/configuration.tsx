@@ -41,6 +41,7 @@ export function Configuration() {
               <div key={t.id}>
                 <span>
                   <strong>{t.name}</strong>
+                  {t.materialsOptional && <small>{translate('materialsOptionalTag')}</small>}
                   {t.retired && <small>{translate('retired2')}</small>}
                 </span>
                 <div className="card-actions">

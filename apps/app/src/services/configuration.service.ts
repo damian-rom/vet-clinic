@@ -18,7 +18,11 @@ export class ConfigurationService {
         await repos.visitTypes.get(key);
         return repos.visitTypes.update(key, data);
       }
-      return repos.visitTypes.create({ name: data.name, retired: data.retired || false });
+      return repos.visitTypes.create({
+        name: data.name,
+        retired: data.retired || false,
+        materialsOptional: data.materialsOptional || false,
+      });
     });
   }
   async deleteVisitType(user: User, key: string) {

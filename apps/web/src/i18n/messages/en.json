@@ -244,6 +244,8 @@
     "aCategoryForVisitPlanningAndAiDrafts": "A category for visit planning and AI drafts.",
     "addType": "Add type",
     "retired2": "Retired",
+    "materialsOptional": "Plans may skip materials",
+    "materialsOptionalTag": "Materials optional",
     "renameValue0": "Rename {value0}",
     "renameVisitType": "Rename visit type",
     "existingVisitsKeepTheirRelationshipToThisType": "Existing visits keep their relationship to this type.",

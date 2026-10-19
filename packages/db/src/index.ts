@@ -71,6 +71,7 @@ export async function openDatabase(path: string): Promise<Database> {
           id: `type-${index + 1}`,
           name,
           retired: false,
+          materialsOptional: name === 'Consult',
         })),
       });
     });
